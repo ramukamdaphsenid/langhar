@@ -1,0 +1,51 @@
+# Version control & IDEs
+.git
+.gitignore
+.vscode
+**/.vscode
+.idea
+**/.idea
+.agents
+.gemini
+
+# Documentation & scripts
+*.md
+README.md
+docs/
+*.bat
+
+# Node & Angular artifacts
+node_modules
+**/node_modules
+frontend/.angular
+frontend/dist
+frontend/**/*.spec.ts
+frontend/tsconfig.spec.json
+frontend/.editorconfig
+frontend/.prettierrc
+
+# Python environment & cache
+venv
+**/venv
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+backend/tests
+**/tests
+
+# Sync state tracking files (should be preserved on host or volume)
+.sync_state.json
+backend/.sync_state.json
+
+# Credentials and secrets (must never be baked into container layers)
+*.env
+.env
+backend/.env
+serviceAccountKey.json
+backend/serviceAccountKey.json
+firebase_credentials.json
+
+# Local temp logs
+*.log

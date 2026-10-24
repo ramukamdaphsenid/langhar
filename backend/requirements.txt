@@ -1,0 +1,13 @@
+# Core dependencies for Tally Prime to Firebase Sync
+requests>=2.31.0
+xmltodict>=0.13.0
+firebase-admin>=6.5.0
+pydantic>=2.7.0
+python-dotenv>=1.0.1
+rich>=13.7.1
+click>=8.1.7
+schedule>=1.2.0
+# Web API server for UI integration
+fastapi>=0.110.0
+uvicorn>=0.28.0
+aiofiles>=23.2.0

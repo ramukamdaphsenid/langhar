@@ -1,0 +1,30 @@
+# Virtual Environment
+venv/
+.env
+*.pyc
+__pycache__/
+
+# Firebase credentials
+serviceAccountKey.json
+firebase_credentials.json
+*.json.secret
+
+# Local sync state and logs
+.sync_state.json
+sync.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+
+# Node & Frontend Build Artifacts
+node_modules/
+**/node_modules/
+frontend/.angular/
+frontend/dist/
+dist/
+
+# Large exported sample/test data files
+sample_*.json
+*.log
