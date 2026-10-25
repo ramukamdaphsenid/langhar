@@ -11,12 +11,20 @@ FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install dependencies using clean install with BuildKit npm cache mount
+# Install dependencies using clean install with BuildKit npm cache mount.
+# Keep optional dependencies: Angular's build toolchain uses platform-specific
+# native packages on Linux.
 COPY frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --prefer-offline --no-audit
+    npm ci --prefer-offline --no-audit --no-fund
 
-# Copy frontend source and build optimized distribution with Angular compiler cache
+# Production build with a larger Node heap to reduce GC pauses during the
+# Angular/esbuild compile. Analytics disabled via NG_CLI_ANALYTICS.
+ENV NODE_ENV=production \
+    NODE_OPTIONS=--max-old-space-size=2048 \
+    NG_CLI_ANALYTICS=0
+
+# Copy frontend source and build optimized distribution with Angular persistent disk cache
 COPY frontend/ ./
 RUN --mount=type=cache,target=/app/frontend/.angular/cache \
     npm run build
@@ -24,7 +32,7 @@ RUN --mount=type=cache,target=/app/frontend/.angular/cache \
 # ------------------------------------------------------------------------------
 # Stage 2: Unified Python Runtime & Static Host
 # ------------------------------------------------------------------------------
-FROM python:3.11-slim AS runtime
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
@@ -47,7 +55,7 @@ COPY --from=frontend-builder /app/frontend/dist/frontend/browser ./static
 EXPOSE 8000
 
 # Zero-overhead healthcheck using Python standard library (no curl/apt install needed)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)" || exit 1
 
 # Start FastAPI server serving both API and Frontend SPA

@@ -30,6 +30,51 @@ def safe_str(val: Any) -> str:
     return str(val).strip()
 
 
+def parse_tally_quantity(raw_qty: Any) -> Tuple[float, str]:
+    """Extracts numeric quantity and unit from Tally quantity string.
+
+    If dual/alternate units are present (e.g. '25.00 QTL = 100 BAG'),
+    it prioritizes the BAG count over weight units like QTL.
+    """
+    s = safe_str(raw_qty).replace(",", "").strip()
+    s = re.sub(r"^=+\s*", "", s)
+    if not s:
+        return 0.0, ""
+
+    segments = [seg.strip() for seg in s.split("=") if re.search(r"\d", seg)]
+    if not segments:
+        return 0.0, ""
+
+    parsed_segments = []
+    for seg in segments:
+        m = re.search(r"[-+]?\d*\.?\d+", seg)
+        if m:
+            val = abs(float(m.group(0)))
+            rest = seg.replace(m.group(0), "").strip()
+            u_match = re.search(r"[a-zA-Z]+", rest)
+            u = u_match.group(0).strip() if u_match else ""
+            parsed_segments.append((val, u))
+
+    if not parsed_segments:
+        return 0.0, ""
+
+    # 1. Prioritize BAG units
+    for val, u in parsed_segments:
+        if re.match(r"^(bag|bags|bgs|bg)$", u, re.IGNORECASE):
+            return val, u
+
+    # 2. Prioritize non-weight packaging units over bulk weight (QTL, KGS)
+    weight_pattern = re.compile(r"^(qtl|qntl|quintal|quintals|kg|kgs|mt|ton|tons|tonne|tonnes)$", re.IGNORECASE)
+    has_weight = any(weight_pattern.match(u) for _, u in parsed_segments if u)
+    if has_weight:
+        for val, u in parsed_segments:
+            if u and not weight_pattern.match(u):
+                return val, u
+
+    # 3. Default to first segment
+    return parsed_segments[0]
+
+
 def safe_float(val: Any, default: float = 0.0) -> float:
     """Safely parses float numbers from Tally strings/dicts (handling negatives, units, commas)."""
     if val is None:
@@ -42,6 +87,10 @@ def safe_float(val: Any, default: float = 0.0) -> float:
     s = safe_str(val)
     if not s:
         return default
+
+    if "=" in s:
+        qty, _ = parse_tally_quantity(s)
+        return qty
 
     cleaned = re.sub(r"[^\d.-]", "", s.split("/")[0])
     try:
@@ -87,20 +136,20 @@ def parse_inventory_entries(raw_entries: Any) -> List[Dict[str, Any]]:
 
         billed_qty_str = safe_str(entry.get("BILLEDQTY"))
         actual_qty_str = safe_str(entry.get("ACTUALQTY"))
-        # Parse numeric quantity
-        qty_num = safe_float(billed_qty_str)
+        
+        # Parse numeric quantity & unit (prioritizing BAG count over QTL in dual units)
+        qty_num, unit = parse_tally_quantity(billed_qty_str or actual_qty_str)
 
         rate_str = safe_str(entry.get("RATE"))
         rate_num = safe_float(rate_str)
 
-        # Extract unit (e.g. from "1000.00/Nos" -> "Nos", or from "10 Nos" -> "Nos")
-        unit = ""
-        if "/" in rate_str:
-            unit = rate_str.split("/")[-1].strip()
-        elif billed_qty_str:
-            unit_match = re.search(r"[a-zA-Z]+", billed_qty_str)
-            if unit_match:
-                unit = unit_match.group(0).strip()
+        if not unit:
+            if "/" in rate_str:
+                unit = rate_str.split("/")[-1].strip()
+            elif billed_qty_str:
+                unit_match = re.search(r"[a-zA-Z]+", billed_qty_str)
+                if unit_match:
+                    unit = unit_match.group(0).strip()
 
         # Amount in Tally credit is often negative, convert to absolute for item line amount
         amount = abs(safe_float(entry.get("AMOUNT")))
@@ -111,11 +160,15 @@ def parse_inventory_entries(raw_entries: Any) -> List[Dict[str, Any]]:
         raw_batches = entry.get("BATCHALLOCATIONS.LIST")
         for b in ensure_list(raw_batches):
             if isinstance(b, dict):
+                b_billed = safe_str(b.get("BILLEDQTY"))
+                b_qty, b_unit = parse_tally_quantity(b_billed)
                 batch_list.append({
                     "batch_name": safe_str(b.get("BATCHNAME")),
                     "godown_name": safe_str(b.get("GODOWNNAME")),
                     "amount": abs(safe_float(b.get("AMOUNT"))),
-                    "billed_qty": safe_str(b.get("BILLEDQTY")),
+                    "billed_qty": b_billed,
+                    "quantity": b_qty,
+                    "unit": b_unit,
                 })
 
         items.append({
@@ -233,10 +286,30 @@ def extract_vehicle_number(v_data: Dict[str, Any], narration: str = "", referenc
     return ""
 
 
-def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+ALLOWED_VOUCHER_TYPES = {"RICE SALES", "RICE SALES TAXABLE"}
+
+
+def is_allowed_voucher_type(v_type: Optional[str]) -> bool:
+    """Checks whether the voucher type is one of the permitted rice sales voucher types."""
+    if not v_type:
+        return False
+    return v_type.strip().upper() in ALLOWED_VOUCHER_TYPES
+
+
+def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Parses a single Tally voucher dictionary into a standardized schema."""
     if not isinstance(v_data, dict):
         return None
+
+    raw_v_type = (
+        safe_str(v_data.get("VOUCHERTYPENAME"))
+        or safe_str(v_data.get("@VCHTYPE"))
+        or safe_str(v_data.get("VCHTYPE"))
+    )
+    if not is_allowed_voucher_type(raw_v_type):
+        return None
+
+    voucher_type = raw_v_type.strip()
 
     guid = safe_str(v_data.get("GUID"))
     voucher_number = safe_str(v_data.get("VOUCHERNUMBER"))
@@ -245,7 +318,6 @@ def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     alter_id = safe_int(v_data.get("ALTERID"))
     master_id = safe_int(v_data.get("MASTERID"))
-    voucher_type = safe_str(v_data.get("VOUCHERTYPENAME")) or "Sales"
 
     # Party details
     party_ledger = safe_str(v_data.get("PARTYLEDGERNAME"))
@@ -298,6 +370,14 @@ def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         clean_suffix = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_id)
         doc_id = clean_suffix
 
+    # Derive company name from param or XML fields
+    resolved_company = (
+        company_name
+        or safe_str(v_data.get("COMPANY"))
+        or safe_str(v_data.get("COMPANYNAME"))
+        or ""
+    )
+
     return {
         "doc_id": doc_id,
         "guid": guid,
@@ -305,6 +385,7 @@ def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "master_id": master_id,
         "voucher_number": voucher_number,
         "voucher_type": voucher_type,
+        "company_name": resolved_company,
         "date": date_iso,
         "effective_date": effective_date_iso,
         "vehicle_number": vehicle_number,
@@ -332,7 +413,7 @@ def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
-def parse_tally_vouchers_xml(xml_content: str) -> List[Dict[str, Any]]:
+def parse_tally_vouchers_xml(xml_content: str, company_name: Optional[str] = None) -> List[Dict[str, Any]]:
     """Parses a full Tally XML response into a list of normalized voucher dicts."""
     if not xml_content or not xml_content.strip():
         return []
@@ -356,6 +437,12 @@ def parse_tally_vouchers_xml(xml_content: str) -> List[Dict[str, Any]]:
     body = envelope.get("BODY", {})
     data = body.get("DATA", {})
 
+    # Check for static variable or header company name if not explicitly passed
+    if not company_name:
+        desc = body.get("DESC", {})
+        static_vars = desc.get("STATICVARIABLES", {})
+        company_name = safe_str(static_vars.get("SVCURRENTCOMPANY")) or None
+
     # Tally can wrap vouchers in COLLECTION or VOUCHER directly
     collection = data.get("COLLECTION", {})
     raw_vouchers = collection.get("VOUCHER", [])
@@ -370,7 +457,7 @@ def parse_tally_vouchers_xml(xml_content: str) -> List[Dict[str, Any]]:
     for v in voucher_list:
         if not v or not isinstance(v, dict):
             continue
-        parsed = parse_single_voucher(v)
+        parsed = parse_single_voucher(v, company_name=company_name)
         if parsed:
             results.append(parsed)
 

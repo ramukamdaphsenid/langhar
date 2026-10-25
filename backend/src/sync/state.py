@@ -22,6 +22,7 @@ class SyncStateManager:
         "total_vouchers_synced": 0,
         "last_status": "NEVER_RUN",
         "last_error": None,
+        "synced_company_name": None,
     }
 
     def __init__(self, state_file: Optional[Path] = None):
@@ -64,11 +65,22 @@ class SyncStateManager:
         except Exception as e:
             logger.error(f"Failed to persist state file to {self.state_file}: {e}")
 
-    def get_last_alter_id(self) -> int:
-        """Retrieves the highest AlterID synchronized so far."""
-        return int(self.load_state().get("last_alter_id", 0))
+    def get_last_alter_id(self, company_name: Optional[str] = None) -> int:
+        """Retrieves the highest AlterID synchronized so far, guarded by target company."""
+        state = self.load_state()
+        recorded_comp = state.get("synced_company_name")
+        if company_name and recorded_comp:
+            from src.utils.company_helper import verify_company_match
+            is_match, _ = verify_company_match(recorded_comp, company_name)
+            if not is_match:
+                logger.warning(
+                    f"[STATE] AlterID state was recorded for company '{recorded_comp}', "
+                    f"but requested company is '{company_name}'. Resetting AlterID to 0 to prevent cross-company sequence corruption."
+                )
+                return 0
+        return int(state.get("last_alter_id", 0))
 
-    def record_sync_success(self, new_alter_id: int, count_synced: int) -> None:
+    def record_sync_success(self, new_alter_id: int, count_synced: int, company_name: Optional[str] = None) -> None:
         """Updates state upon successful voucher sync."""
         state = self.load_state()
         state["last_alter_id"] = max(state.get("last_alter_id", 0), new_alter_id)
@@ -76,6 +88,8 @@ class SyncStateManager:
         state["total_vouchers_synced"] = state.get("total_vouchers_synced", 0) + count_synced
         state["last_status"] = "SUCCESS"
         state["last_error"] = None
+        if company_name:
+            state["synced_company_name"] = company_name
         self.save_state(state)
 
     def record_sync_failure(self, error_message: str) -> None:

@@ -4,6 +4,7 @@ export interface SyncState {
   total_vouchers_synced: number;
   last_status: 'SUCCESS' | 'FAILED' | 'RUNNING' | 'NEVER_RUN' | string;
   last_error: string | null;
+  synced_company_name?: string | null;
   state_file: string;
 }
 
@@ -18,6 +19,10 @@ export interface SyncConfig {
   tally_url: string;
   tally_target: string;
   tally_company: string;
+  target_company?: string;
+  active_tally_company?: string | null;
+  company_match_ok?: boolean | null;
+  company_match_message?: string | null;
   tally_use_odbc: boolean;
   firebase_collection: string;
   credentials_path: string;
@@ -63,17 +68,6 @@ export interface SyncRequestPayload {
   full?: boolean;
 }
 
-export interface LogEntry {
-  timestamp: string;
-  level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG' | string;
-  message: string;
-}
-
-export interface LogsResponse {
-  count: number;
-  logs: LogEntry[];
-}
-
 export interface BatchItem {
   batch_name?: string;
   godown_name?: string;
@@ -116,6 +110,7 @@ export interface VoucherItem {
   alter_id?: number;
   master_id?: number;
   voucher_number: string;
+  company_name?: string;
   date: string;
   effective_date?: string;
   voucher_type?: string;
@@ -144,7 +139,7 @@ export interface VoucherItem {
 }
 
 export interface VouchersResponse {
-  source: 'live' | 'mock';
+  source: 'live' | 'firestore' | 'mock';
   total: number;
   returned: number;
   vouchers: VoucherItem[];

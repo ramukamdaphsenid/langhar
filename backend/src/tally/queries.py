@@ -7,53 +7,33 @@ from typing import Optional
 
 
 def build_company_info_query() -> str:
-    """XML request to check connection and retrieve the active company details."""
+    """Safe built-in Tally XML request to retrieve loaded companies.
+
+    Uses Tally's native Company collection export request.
+    This does NOT use any custom ad-hoc TDL scripts or unallocated '##' macros,
+    which prevents Memory Access Violations (c0000005) in Tally Prime.
+    """
     return """<ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
-    <TYPE>Data</TYPE>
-    <ID>CompanyInfo</ID>
+    <TYPE>Collection</TYPE>
+    <ID>Company</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
-      <TDL>
-        <TDLMESSAGE>
-          <REPORT NAME="CompanyInfo">
-            <FORMS>CompanyInfoForm</FORMS>
-          </REPORT>
-          <FORM NAME="CompanyInfoForm">
-            <PARTS>CompanyInfoPart</PARTS>
-          </FORM>
-          <PART NAME="CompanyInfoPart">
-            <LINES>CompanyInfoLine</LINES>
-            <REPEAT>CompanyInfoLine : ActiveCompanyCollection</REPEAT>
-            <SCROLLED>Vertical</SCROLLED>
-          </PART>
-          <LINE NAME="CompanyInfoLine">
-            <FIELDS>FldCompanyName, FldCompanyGuid</FIELDS>
-          </LINE>
-          <FIELD NAME="FldCompanyName">
-            <SET>##SVCURRENTCOMPANY</SET>
-          </FIELD>
-          <FIELD NAME="FldCompanyGuid">
-            <SET>$Guid</SET>
-          </FIELD>
-          <COLLECTION NAME="ActiveCompanyCollection">
-            <TYPE>Company</TYPE>
-            <FILTER>IsCurrentCompany</FILTER>
-          </COLLECTION>
-          <SYSTEM TYPE="Formulae" NAME="IsCurrentCompany">
-            $Name = ##SVCURRENTCOMPANY
-          </SYSTEM>
-        </TDLMESSAGE>
-      </TDL>
     </DESC>
   </BODY>
 </ENVELOPE>"""
+
+
+
+def build_active_company_query() -> str:
+    """Safe native List of Companies request."""
+    return build_company_info_query()
 
 
 def build_sales_vouchers_query(
@@ -72,8 +52,15 @@ def build_sales_vouchers_query(
     """
     # Build Static Variables block
     static_vars = ["<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>"]
-    if company:
-        static_vars.append(f"<SVCURRENTCOMPANY>{company}</SVCURRENTCOMPANY>")
+    if company and company.strip():
+        clean_company = (
+            company.strip()
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+        static_vars.append(f"<SVCURRENTCOMPANY>{clean_company}</SVCURRENTCOMPANY>")
     if from_date:
         static_vars.append(f"<SVFROMDATE>{from_date}</SVFROMDATE>")
     if to_date:
@@ -81,11 +68,11 @@ def build_sales_vouchers_query(
 
     static_vars_xml = "\n        ".join(static_vars)
 
-    # Build Filter formulas
-    filters = ["<FILTER>IsSalesVoucher</FILTER>"]
+    # Build Filter formulas: Filter strictly for RICE SALES and RICE SALES TAXABLE
+    filters = ["<FILTER>IsRiceSalesVoucher</FILTER>"]
     formulae = [
-        """<SYSTEM TYPE="Formulae" NAME="IsSalesVoucher">
-            $$IsSales:$VoucherTypeName
+        """<SYSTEM TYPE="Formulae" NAME="IsRiceSalesVoucher">
+            ($VoucherTypeName = "RICE SALES") OR ($VoucherTypeName = "RICE SALES TAXABLE")
           </SYSTEM>"""
     ]
 

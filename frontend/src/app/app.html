@@ -1,131 +1,115 @@
 <div class="app-layout">
-  <!-- Top Navigation Bar -->
   <header class="app-header">
     <div class="header-container">
-      <!-- Left: Brand Logo & Title -->
-      <div class="brand-section">
-        <img src="assets/langhar-logo.jpg" alt="KAD Langhar Gold Logo" class="brand-logo-img">
-        <div class="brand-text-group">
-          <h1 class="brand-title">LANGHAR</h1>
-          <span class="badge badge-info brand-badge font-mono">SYNC ENGINE</span>
-        </div>
+      <div class="header-brand-group">
+        <a class="brand-section" [routerLink]="['/vouchers']" aria-label="Langhar home">
+          <img src="assets/langhar-logo.jpg" alt="" class="brand-logo-img">
+          <div class="brand-text-group">
+            <h1 class="brand-title">LANGHAR</h1>
+            <span class="brand-tag">ERP</span>
+          </div>
+        </a>
+
+        <div class="header-brand-divider"></div>
+
+        <nav class="header-nav-switcher" aria-label="Main navigation">
+          <a
+            id="nav-vouchers"
+            class="nav-module-btn"
+            [routerLink]="['/vouchers']"
+            routerLinkActive="active"
+            ariaCurrentWhen="page"
+            title="Browse, filter, and export synchronized sales vouchers">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>Vouchers</span>
+            <span class="module-badge font-mono">{{ syncService.vouchers().length }}</span>
+          </a>
+
+          <a
+            id="nav-settings"
+            class="nav-module-btn"
+            [routerLink]="['/settings']"
+            [queryParams]="{ tab: 'invoice' }"
+            routerLinkActive="active"
+            ariaCurrentWhen="page"
+            title="Configure company profile, invoice printing, Tally synchronization, and system settings">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Settings</span>
+          </a>
+        </nav>
       </div>
 
-      <!-- Center: Status Strip -->
-      <div class="header-status-strip">
-        <div class="status-item" id="backend-status-pill">
-          @if (syncService.isBackendOnline()) {
-            <span class="badge badge-success">
-              <span class="badge-dot badge-pulse"></span>
-              FastAPI Online
-            </span>
-          } @else {
-            <span class="badge badge-danger">
-              <span class="badge-dot"></span>
-              FastAPI Offline
-            </span>
-          }
+      <div class="header-right-group">
+        <a
+          class="header-health-link"
+          [class.health-online]="headerStatus().tone === 'online'"
+          [class.health-syncing]="headerStatus().tone === 'syncing'"
+          [class.health-warning]="headerStatus().tone === 'warning'"
+          [class.health-offline]="headerStatus().tone === 'offline'"
+          [routerLink]="['/settings']"
+          [queryParams]="{ tab: 'sync' }"
+          [attr.aria-label]="headerStatus().label + '. Open system status details.'"
+          title="Open Tally and Firebase status details">
+          <span class="header-health-dot" aria-hidden="true"></span>
+          <span class="header-health-label">{{ headerStatus().label }}</span>
+          <svg class="header-health-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </a>
+
+        <div class="header-actions-divider" aria-hidden="true"></div>
+
+        <div class="header-actions">
+          <button
+            id="btn-manual-refresh"
+            type="button"
+            class="header-util-btn icon-only"
+            (click)="syncService.refreshAll()"
+            [attr.aria-label]="syncService.isCheckingHealth() ? 'Refreshing system status' : 'Refresh system status'"
+            title="Refresh system status">
+            <svg class="btn-icon" [class.animate-spin]="syncService.isCheckingHealth()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 21h5v-5"/>
+            </svg>
+          </button>
+
+          <button
+            id="btn-theme-toggle"
+            type="button"
+            class="header-util-btn icon-only"
+            (click)="toggleTheme()"
+            [attr.aria-label]="isDarkMode() ? 'Switch to light theme' : 'Switch to dark theme'"
+            [title]="isDarkMode() ? 'Switch to Light Theme' : 'Switch to Dark Theme'">
+            @if (isDarkMode()) {
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            } @else {
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            }
+          </button>
         </div>
-
-        @if (syncService.status(); as s) {
-          <div class="status-item hide-mobile">
-            <span class="meta-tag" title="Active Tally company">
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-                <line x1="6" y1="6" x2="6.01" y2="6"/>
-                <line x1="6" y1="18" x2="6.01" y2="18"/>
-              </svg>
-              <span class="meta-label">Company:</span>
-              <strong class="meta-value">{{ s.config.tally_company }}</strong>
-            </span>
-          </div>
-
-          <div class="status-item hide-mobile">
-            <span class="meta-tag" title="Firestore Collection">
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
-                <path d="M12 12v9"/>
-                <path d="m8 17 4 4 4-4"/>
-              </svg>
-              <span class="meta-label">Collection:</span>
-              <strong class="meta-value font-mono">{{ s.config.firebase_collection }}</strong>
-            </span>
-          </div>
-        }
-      </div>
-
-      <!-- Right: Action Buttons + Theme Switcher -->
-      <div class="header-actions">
-        <!-- Light / Dark Theme Switcher Button -->
-        <button 
-          id="btn-theme-toggle"
-          type="button" 
-          class="btn btn-secondary btn-sm theme-toggle-btn" 
-          (click)="toggleTheme()" 
-          [title]="isDarkMode() ? 'Switch to Light Theme' : 'Switch to Dark Theme'">
-          @if (isDarkMode()) {
-            <!-- Sun Icon -->
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="5"/>
-              <line x1="12" y1="1" x2="12" y2="3"/>
-              <line x1="12" y1="21" x2="12" y2="23"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <line x1="1" y1="12" x2="3" y2="12"/>
-              <line x1="21" y1="12" x2="23" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-            <span class="theme-label hide-mobile">Light</span>
-          } @else {
-            <!-- Moon Icon -->
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-            <span class="theme-label hide-mobile">Dark</span>
-          }
-        </button>
-
-        <!-- Auto Refresh Toggle -->
-        <button 
-          id="btn-auto-refresh"
-          type="button" 
-          class="btn btn-secondary btn-sm toggle-auto-btn" 
-          (click)="syncService.toggleAutoRefresh()"
-          [title]="syncService.autoRefreshEnabled() ? 'Auto-refresh active (polls status)' : 'Auto-refresh paused'">
-          <span class="auto-indicator" [class.active]="syncService.autoRefreshEnabled()"></span>
-          <span>Auto: {{ syncService.autoRefreshEnabled() ? 'ON' : 'OFF' }}</span>
-        </button>
-
-        <!-- Refresh Button -->
-        <button 
-          id="btn-manual-refresh"
-          type="button" 
-          class="btn btn-secondary btn-sm" 
-          (click)="syncService.refreshAll()" 
-          title="Refresh dashboard state">
-          <svg class="btn-icon" [class.animate-spin]="syncService.isCheckingHealth()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-            <path d="M16 21h5v-5"/>
-          </svg>
-          <span>Refresh</span>
-        </button>
-
-        <!-- Settings Button -->
-        <button 
-          id="btn-open-settings"
-          type="button" 
-          class="btn btn-secondary btn-sm icon-only" 
-          (click)="isSettingsModalOpen.set(true)" 
-          title="Settings & API URL">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
       </div>
     </div>
   </header>
@@ -141,7 +125,7 @@
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <div class="alert-content">
-          <span class="alert-strong">Sync Error:</span> {{ error }}
+          <span class="alert-strong">Alert:</span> {{ error }}
         </div>
         <button class="alert-close" (click)="syncService.clearError()" aria-label="Dismiss">&times;</button>
       </div>
@@ -166,1092 +150,20 @@
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
         <div class="alert-content">
-          <span class="alert-strong">FastAPI Server Unreachable:</span> Connecting to 
-          <code class="font-mono">{{ syncService.apiBaseUrl() }}</code> failed. Verify that your Python API server is running on port 8000.
+          <span class="alert-strong">FastAPI Server Offline:</span> Connecting to 
+          <code class="font-mono">{{ syncService.apiBaseUrl() }}</code> failed. Check that your Python API server is running on port 8000.
         </div>
-        <button class="btn btn-secondary btn-sm" (click)="syncService.refreshAll()">Retry Connection</button>
+        <div class="alert-actions">
+          <button class="btn btn-secondary btn-sm" (click)="syncService.refreshAll()">Retry</button>
+          <button class="btn btn-secondary btn-sm" [routerLink]="['/settings']" [queryParams]="{ tab: 'sync' }">Check Status</button>
+        </div>
       </div>
     }
+    <!-- ========================================================================= -->
+    <!-- ROUTER OUTLET: VOUCHER EXPLORER & SETTINGS VIEWS                          -->
+    <!-- ========================================================================= -->
+    <router-outlet></router-outlet>
 
-    <!-- KPI Metrics Cards Grid -->
-    <section class="kpi-grid">
-      <!-- Card 1: Engine Status -->
-      <div class="glass-panel kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-label">ENGINE STATUS</span>
-          <div class="kpi-status-badge">
-            @if (syncService.isSyncing()) {
-              <span class="badge badge-info badge-pulse">
-                <svg class="spin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                </svg>
-                Syncing
-              </span>
-            } @else if (syncService.status()?.state?.last_status === 'SUCCESS') {
-              <span class="badge badge-success">
-                <span class="badge-dot"></span>
-                Operational
-              </span>
-            } @else if (syncService.status()?.state?.last_status === 'FAILED') {
-              <span class="badge badge-danger">
-                <span class="badge-dot"></span>
-                Failed
-              </span>
-            } @else {
-              <span class="badge badge-warning">
-                <span class="badge-dot"></span>
-                Idle / Ready
-              </span>
-            }
-          </div>
-        </div>
-
-        <div class="kpi-body">
-          <div class="kpi-primary-val" [class.text-accent]="syncService.isSyncing()">
-            {{ syncService.isSyncing() ? 'Synchronizing' : (syncService.status()?.state?.last_status === 'SUCCESS' ? 'All Synced' : (syncService.status()?.state?.last_status || 'Ready')) }}
-          </div>
-          <div class="kpi-detail-row">
-            <span class="kpi-detail-label">Last Sync:</span>
-            <span class="kpi-detail-value">
-              {{ syncService.status()?.state?.last_sync_timestamp ? (syncService.status()?.state?.last_sync_timestamp | date:'short') : 'No runs recorded' }}
-            </span>
-          </div>
-        </div>
-
-        <div class="kpi-footer">
-          @if (syncService.lastSyncResult(); as res) {
-            <span class="kpi-hint">
-              Completed in <strong class="text-white">{{ res.elapsed_seconds ?? 0 }}s</strong> • Synced: <strong class="text-white">{{ res.synced_count ?? 0 }}</strong>
-            </span>
-          } @else {
-            <span class="kpi-hint">Engine initialized and ready</span>
-          }
-        </div>
-      </div>
-
-      <!-- Card 2: Alter Watermark & Total Synced -->
-      <div class="glass-panel kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-label">INCREMENTAL WATERMARK</span>
-          <span class="badge badge-neutral font-mono">Tally $AlterID</span>
-        </div>
-
-        <div class="kpi-body">
-          <div class="kpi-primary-val font-mono">
-            {{ syncService.status()?.state?.last_alter_id ?? 0 | number }}
-          </div>
-          <div class="kpi-detail-row">
-            <span class="kpi-detail-label">Total Synced:</span>
-            <span class="kpi-detail-value text-emerald font-bold">
-              {{ syncService.status()?.state?.total_vouchers_synced ?? 0 | number }} vouchers
-            </span>
-          </div>
-        </div>
-
-        <div class="kpi-footer">
-          <span class="kpi-hint font-mono text-truncate" [title]="syncService.status()?.state?.state_file || ''">
-            Checkpoint: {{ syncService.status()?.state?.state_file ? '.sync_state.json' : 'Uninitialized' }}
-          </span>
-        </div>
-      </div>
-
-      <!-- Card 3: Automated Daemon Scheduler -->
-      <div class="glass-panel kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-label">BACKGROUND DAEMON</span>
-          @if (syncService.status()?.daemon?.is_running) {
-            <span class="badge badge-success">
-              <span class="badge-dot badge-pulse"></span>
-              Active
-            </span>
-          } @else {
-            <span class="badge badge-neutral">
-              <span class="badge-dot"></span>
-              Stopped
-            </span>
-          }
-        </div>
-
-        <div class="kpi-body">
-          <div class="kpi-primary-val">
-            @if (syncService.status()?.daemon?.is_running) {
-              <span class="countdown-text">
-                Next: <strong class="font-mono text-white">{{ countdownSeconds() !== null ? countdownSeconds() + 's' : '...' }}</strong>
-              </span>
-            } @else {
-              <span class="text-muted">Paused</span>
-            }
-          </div>
-          <div class="kpi-detail-row">
-            <span class="kpi-detail-label">Cadence:</span>
-            <span class="kpi-detail-value">
-              Every {{ syncService.status()?.daemon?.interval_seconds ?? 60 }}s
-            </span>
-          </div>
-        </div>
-
-        <div class="kpi-footer daemon-control-footer">
-          <button 
-            id="btn-toggle-daemon"
-            type="button" 
-            class="btn btn-sm" 
-            [class.btn-danger-outline]="syncService.status()?.daemon?.is_running"
-            [class.btn-success]="!syncService.status()?.daemon?.is_running"
-            (click)="toggleDaemon()">
-            {{ syncService.status()?.daemon?.is_running ? 'Stop Daemon' : 'Start Daemon' }}
-          </button>
-
-          <select 
-            class="daemon-select" 
-            [ngModel]="syncService.status()?.daemon?.interval_seconds ?? 60"
-            (ngModelChange)="syncService.status()?.daemon?.is_running ? syncService.startDaemon($event).subscribe() : daemonIntervalInput.set($event)"
-            title="Daemon Sync Interval">
-            <option [value]="10">10s</option>
-            <option [value]="30">30s</option>
-            <option [value]="60">60s</option>
-            <option [value]="300">5 min</option>
-            <option [value]="900">15 min</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Card 4: Connectivity Health -->
-      <div class="glass-panel kpi-card">
-        <div class="kpi-header">
-          <span class="kpi-label">CONNECTIVITY HEALTH</span>
-          <button class="text-link-btn" (click)="activeTab.set('diagnostics')">
-            Diagnostics ➔
-          </button>
-        </div>
-
-        <div class="kpi-body">
-          <div class="health-row">
-            <span class="health-service">Tally Prime:</span>
-            @if (syncService.diagnostics()?.tally?.ok) {
-              <span class="badge badge-success badge-sm">Connected</span>
-            } @else if (syncService.diagnostics()?.tally) {
-              <span class="badge badge-danger badge-sm">Offline</span>
-            } @else {
-              <span class="badge badge-warning badge-sm">Checking...</span>
-            }
-          </div>
-
-          <div class="health-row">
-            <span class="health-service">Cloud Firestore:</span>
-            @if (syncService.diagnostics()?.firebase?.ok) {
-              <span class="badge badge-success badge-sm">Authenticated</span>
-            } @else if (syncService.diagnostics()?.firebase) {
-              <span class="badge badge-danger badge-sm">No Key / Offline</span>
-            } @else {
-              <span class="badge badge-warning badge-sm">Checking...</span>
-            }
-          </div>
-        </div>
-
-        <div class="kpi-footer">
-          <button 
-            id="btn-quick-diagnostics"
-            type="button" 
-            class="btn btn-secondary btn-sm full-width-btn" 
-            (click)="syncService.fetchDiagnostics().subscribe()">
-            Run Diagnostics Check
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Sync Operations Command Bar -->
-    <section class="command-section glass-panel">
-      <div class="command-header">
-        <div class="command-meta">
-          <div class="command-title-row">
-            <h2 class="command-title">Sync Control Center</h2>
-            <span class="badge badge-neutral">Interactive Operations</span>
-          </div>
-          <p class="command-subtitle">
-            Trigger incremental or full batch updates from Tally Prime directly into Firestore.
-          </p>
-        </div>
-
-        @if (syncService.isSyncing()) {
-          <div class="sync-active-indicator">
-            <span class="pulse-ring-dot"></span>
-            <span class="sync-active-text">Engine Synchronizing...</span>
-          </div>
-        }
-      </div>
-
-      @if (syncService.isSyncing()) {
-        <div class="sync-progress-track">
-          <div class="sync-progress-bar"></div>
-        </div>
-      }
-
-      <!-- 4 High-Precision Action Cards -->
-      <div class="actions-grid">
-        <!-- Action 1: Quick Incremental Sync (Primary) -->
-        <div class="action-card action-primary-card" [class.disabled]="syncService.isSyncing()">
-          <div class="action-card-top">
-            <div class="action-icon-badge icon-primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-              </svg>
-            </div>
-            <span class="badge badge-info">Recommended</span>
-          </div>
-
-          <div class="action-card-body">
-            <h3 class="action-title">Quick Incremental Sync</h3>
-            <p class="action-desc">
-              Synchronizes newly modified vouchers since <strong>AlterID #{{ syncService.status()?.state?.last_alter_id ?? 0 }}</strong>.
-            </p>
-          </div>
-
-          <button 
-            id="btn-trigger-quick-sync"
-            type="button" 
-            class="btn btn-primary action-btn" 
-            [disabled]="syncService.isSyncing()"
-            (click)="triggerQuickSync()">
-            @if (syncService.isSyncing()) {
-              <svg class="animate-spin btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-                <path d="M12 2a10 10 0 0 1 10 10"/>
-              </svg>
-              <span>Syncing Now...</span>
-            } @else {
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m5 12 5 5L20 7"/>
-              </svg>
-              <span>Trigger Quick Sync</span>
-            }
-          </button>
-        </div>
-
-        <!-- Action 2: Date Range Sync -->
-        <div class="action-card" [class.disabled]="syncService.isSyncing()">
-          <div class="action-card-top">
-            <div class="action-icon-badge icon-cyan">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </div>
-            <span class="badge badge-neutral">Backfill</span>
-          </div>
-
-          <div class="action-card-body">
-            <h3 class="action-title">Date-Range Sync</h3>
-            <p class="action-desc">
-              Backfill vouchers for a specific financial window (e.g. Month-to-date, FY, or custom period).
-            </p>
-          </div>
-
-          <button 
-            id="btn-open-daterange-modal"
-            type="button" 
-            class="btn btn-secondary action-btn" 
-            [disabled]="syncService.isSyncing()"
-            (click)="openDateRangeModal()">
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            <span>Choose Dates</span>
-          </button>
-        </div>
-
-        <!-- Action 3: Force Full Resync -->
-        <div class="action-card" [class.disabled]="syncService.isSyncing()">
-          <div class="action-card-top">
-            <div class="action-icon-badge icon-emerald">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-              </svg>
-            </div>
-            <span class="badge badge-neutral">Complete</span>
-          </div>
-
-          <div class="action-card-body">
-            <h3 class="action-title">Force Full Resync</h3>
-            <p class="action-desc">
-              Bypasses the AlterID filter to re-scan and sync all company Sales Vouchers from Tally.
-            </p>
-          </div>
-
-          <button 
-            id="btn-trigger-full-sync"
-            type="button" 
-            class="btn btn-secondary action-btn" 
-            [disabled]="syncService.isSyncing()"
-            (click)="triggerFullSync()">
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 4.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 0 1-15.357-2m15.357 2H15"/>
-            </svg>
-            <span>Full Resync All</span>
-          </button>
-        </div>
-
-        <!-- Action 4: Reset Sync State -->
-        <div class="action-card" [class.disabled]="syncService.isSyncing()">
-          <div class="action-card-top">
-            <div class="action-icon-badge icon-rose">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </div>
-            <span class="badge badge-danger">Maintenance</span>
-          </div>
-
-          <div class="action-card-body">
-            <h3 class="action-title">Reset Watermark</h3>
-            <p class="action-desc">
-              Clears the local AlterID checkpoint to zero so the next run triggers a complete fresh pass.
-            </p>
-          </div>
-
-          <button 
-            id="btn-open-reset-state"
-            type="button" 
-            class="btn btn-danger-outline action-btn" 
-            [disabled]="syncService.isSyncing()"
-            (click)="openResetModal()">
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
-            <span>Reset Checkpoint</span>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Main Workspace Section: Tabs & Views -->
-    <section class="workspace-section">
-      <!-- Segmented Navigation Tabs -->
-      <div class="tab-bar-container">
-        <div class="segmented-tabs" role="tablist">
-          <button 
-            id="tab-vouchers"
-            role="tab"
-            class="segmented-tab" 
-            [class.active]="activeTab() === 'vouchers'"
-            (click)="activeTab.set('vouchers')">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>Voucher Explorer</span>
-            <span class="tab-badge">{{ filteredVouchers().length }}</span>
-          </button>
-
-          <button 
-            id="tab-logs"
-            role="tab"
-            class="segmented-tab" 
-            [class.active]="activeTab() === 'logs'"
-            (click)="activeTab.set('logs')">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="4 17 10 11 4 5"/>
-              <line x1="12" y1="19" x2="20" y2="19"/>
-            </svg>
-            <span>Live Backend Logs</span>
-            <span class="tab-badge font-mono">{{ syncService.logs().length }}</span>
-          </button>
-
-          <button 
-            id="tab-diagnostics"
-            role="tab"
-            class="segmented-tab" 
-            [class.active]="activeTab() === 'diagnostics'"
-            (click)="activeTab.set('diagnostics')">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-            <span>System Diagnostics</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tab Content Area -->
-      <div class="workspace-panel glass-panel">
-
-        <!-- ================= TAB 1: VOUCHER EXPLORER ================= -->
-        @if (activeTab() === 'vouchers') {
-          <div class="tab-pane">
-            <!-- Toolbar -->
-            <div class="pane-toolbar">
-              <div class="search-input-wrapper">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input 
-                  id="voucher-search-input"
-                  type="text" 
-                  class="search-input" 
-                  placeholder="Filter vouchers by number, party name, vehicle, GSTIN, or GUID..."
-                  [ngModel]="voucherSearch()"
-                  (ngModelChange)="voucherSearch.set($event)"
-                />
-                @if (voucherSearch()) {
-                  <button class="clear-search-btn" (click)="voucherSearch.set('')" aria-label="Clear search">&times;</button>
-                }
-              </div>
-
-              <div class="toolbar-meta-group">
-                <span class="badge" [class.badge-success]="syncService.vouchersSource() === 'live'" [class.badge-warning]="syncService.vouchersSource() === 'mock'">
-                  <span class="badge-dot"></span>
-                  Source: {{ syncService.vouchersSource() === 'live' ? 'Live Tally Prime' : 'XML Test Mock' }}
-                </span>
-
-                <button 
-                  id="btn-refresh-vouchers"
-                  type="button" 
-                  class="btn btn-secondary btn-sm" 
-                  (click)="syncService.fetchVouchers().subscribe()">
-                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                    <path d="M3 3v5h5"/>
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                    <path d="M16 21h5v-5"/>
-                  </svg>
-                  <span>Reload Vouchers</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Vouchers Data Table -->
-            <div class="table-wrapper">
-              <table class="modern-table">
-                <thead>
-                  <tr>
-                    <th class="th-voucher">Voucher #</th>
-                    <th class="th-date">Date</th>
-                    <th class="th-party">Party Details</th>
-                    <th class="th-vehicle">Vehicle No</th>
-                    <th class="th-state">State / GSTIN</th>
-                    <th class="th-items">Items</th>
-                    <th class="th-amount text-right">Total Amount</th>
-                    <th class="th-actions text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (voucher of filteredVouchers(); track voucher.guid || voucher.voucher_number) {
-                    <tr class="table-row">
-                      <td class="td-voucher">
-                        <div class="voucher-badge-group">
-                          <span class="voucher-id-pill font-mono">{{ voucher.voucher_number }}</span>
-                          <span class="voucher-type-sub">{{ voucher.voucher_type || 'Sales' }}</span>
-                        </div>
-                      </td>
-                      <td class="td-date font-mono text-secondary text-sm">
-                        {{ voucher.date }}
-                      </td>
-                      <td class="td-party">
-                        <div class="party-primary-name">{{ getPartyDisplayName(voucher) }}</div>
-                        @if (voucher.party_ledger_name && voucher.party_name && voucher.party_ledger_name !== voucher.party_name) {
-                          <div class="party-ledger-sub text-muted text-xs">{{ voucher.party_ledger_name }}</div>
-                        }
-                      </td>
-                      <td class="td-vehicle">
-                        @if (voucher.vehicle_number) {
-                          <span class="vehicle-plate font-mono">{{ voucher.vehicle_number }}</span>
-                        } @else {
-                          <span class="text-dim text-xs font-mono">—</span>
-                        }
-                      </td>
-                      <td class="td-state">
-                        <div class="state-label">{{ voucher.state_name || voucher.party?.state || 'N/A' }}</div>
-                        <div class="gstin-label font-mono text-xs text-muted">{{ voucher.party_gstin || voucher.party?.gstin || 'Unregistered' }}</div>
-                      </td>
-                      <td class="td-items">
-                        <span class="items-badge">
-                          {{ getVoucherItems(voucher).length }} item(s)
-                        </span>
-                      </td>
-                      <td class="td-amount text-right font-mono font-bold">
-                        <span class="amount-val">₹{{ getVoucherTotal(voucher) | number:'1.2-2' }}</span>
-                      </td>
-                      <td class="td-actions text-center">
-                        <button 
-                          type="button" 
-                          class="btn btn-secondary btn-sm inspect-btn" 
-                          (click)="openVoucherDetail(voucher)"
-                          title="Inspect details, item entries, and tax breakdown">
-                          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                          <span>Inspect</span>
-                        </button>
-                      </td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="8" class="empty-state-cell">
-                        <div class="empty-state-content">
-                          <div class="empty-state-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                            </svg>
-                          </div>
-                          <h4 class="empty-state-title">No Vouchers Found</h4>
-                          <p class="empty-state-desc text-muted">
-                            @if (voucherSearch()) {
-                              No records match filter "{{ voucherSearch() }}". Try clearing the search.
-                            } @else {
-                              No sales vouchers currently loaded. Confirm Tally Prime is running on port 9000 or click Reload Vouchers.
-                            }
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        }
-
-        <!-- ================= TAB 2: LIVE BACKEND LOGS ================= -->
-        @if (activeTab() === 'logs') {
-          <div class="tab-pane">
-            <div class="pane-toolbar">
-              <!-- Filter chips -->
-              <div class="log-chips-group">
-                <button 
-                  class="log-filter-chip" 
-                  [class.active]="logLevelFilter() === 'ALL'" 
-                  (click)="logLevelFilter.set('ALL')">
-                  All Levels
-                </button>
-                <button 
-                  class="log-filter-chip info-chip" 
-                  [class.active]="logLevelFilter() === 'INFO'" 
-                  (click)="logLevelFilter.set('INFO')">
-                  INFO
-                </button>
-                <button 
-                  class="log-filter-chip warn-chip" 
-                  [class.active]="logLevelFilter() === 'WARNING'" 
-                  (click)="logLevelFilter.set('WARNING')">
-                  WARNING
-                </button>
-                <button 
-                  class="log-filter-chip error-chip" 
-                  [class.active]="logLevelFilter() === 'ERROR'" 
-                  (click)="logLevelFilter.set('ERROR')">
-                  ERROR
-                </button>
-              </div>
-
-              <!-- Log Search -->
-              <div class="search-input-wrapper log-search-wrapper">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input 
-                  id="log-search-input"
-                  type="text" 
-                  class="search-input" 
-                  placeholder="Filter logs by keyword..."
-                  [ngModel]="logSearch()"
-                  (ngModelChange)="logSearch.set($event)"
-                />
-              </div>
-
-              <!-- Actions -->
-              <div class="toolbar-meta-group">
-                <button 
-                  id="btn-copy-logs"
-                  type="button" 
-                  class="btn btn-secondary btn-sm" 
-                  (click)="copyLogsToClipboard()">
-                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                  </svg>
-                  <span>Copy Logs</span>
-                </button>
-                <button 
-                  id="btn-refresh-logs"
-                  type="button" 
-                  class="btn btn-secondary btn-sm" 
-                  (click)="syncService.fetchLogs().subscribe()">
-                  <span>Refresh</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Terminal Viewer -->
-            <div class="terminal-box">
-              <div class="terminal-bar">
-                <div class="terminal-controls">
-                  <span class="t-dot red"></span>
-                  <span class="t-dot yellow"></span>
-                  <span class="t-dot green"></span>
-                </div>
-                <div class="terminal-file font-mono">fastapi-sync-daemon.log</div>
-                <div class="terminal-badge font-mono">{{ filteredLogs().length }} entries</div>
-              </div>
-
-              <div class="terminal-scroll-area font-mono">
-                @for (entry of filteredLogs(); track $index) {
-                  <div class="terminal-log-line" [class.line-error]="entry.level === 'ERROR'" [class.line-warn]="entry.level === 'WARNING'">
-                    <span class="log-timestamp">{{ entry.timestamp }}</span>
-                    <span class="log-level-pill" [class.badge-info]="entry.level === 'INFO'" [class.badge-warning]="entry.level === 'WARNING'" [class.badge-danger]="entry.level === 'ERROR'">
-                      {{ entry.level }}
-                    </span>
-                    <span class="log-msg-text">{{ entry.message }}</span>
-                  </div>
-                } @empty {
-                  <div class="terminal-empty-text">No matching logs recorded. Trigger a sync action to view streaming activity.</div>
-                }
-              </div>
-            </div>
-          </div>
-        }
-
-        <!-- ================= TAB 3: SYSTEM DIAGNOSTICS ================= -->
-        @if (activeTab() === 'diagnostics') {
-          <div class="tab-pane">
-            <div class="pane-toolbar">
-              <div>
-                <h3 class="pane-heading">Integration Subsystems Analysis</h3>
-                <p class="pane-subheading text-muted">Real-time status check for Tally Prime XML HTTP endpoint and Firebase Firestore API.</p>
-              </div>
-
-              <button 
-                id="btn-run-full-check"
-                type="button" 
-                class="btn btn-primary btn-sm" 
-                [disabled]="syncService.isCheckingHealth()"
-                (click)="syncService.fetchDiagnostics().subscribe()">
-                @if (syncService.isCheckingHealth()) {
-                  <svg class="animate-spin btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-                    <path d="M12 2a10 10 0 0 1 10 10"/>
-                  </svg>
-                  <span>Testing Subsystems...</span>
-                } @else {
-                  <span>Re-test Connectivity</span>
-                }
-              </button>
-            </div>
-
-            <div class="diag-cards-grid">
-              <!-- Tally Card -->
-              <div class="diag-card glass-panel">
-                <div class="diag-card-head">
-                  <div class="diag-brand-group">
-                    <div class="diag-icon-box tally-theme">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-                        <line x1="6" y1="6" x2="6.01" y2="6"/>
-                        <line x1="6" y1="18" x2="6.01" y2="18"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 class="diag-title">Tally Prime XML Server</h4>
-                      <div class="diag-subtitle font-mono">
-                        {{ syncService.diagnostics()?.tally?.target || syncService.status()?.config?.tally_target || 'http://localhost:9000' }}
-                      </div>
-                    </div>
-                  </div>
-
-                  @if (syncService.diagnostics()?.tally?.ok) {
-                    <span class="badge badge-success">Online & Accessible</span>
-                  } @else {
-                    <span class="badge badge-danger">Offline / Unreachable</span>
-                  }
-                </div>
-
-                <div class="diag-card-body">
-                  <div class="diag-callout" [class.callout-success]="syncService.diagnostics()?.tally?.ok" [class.callout-error]="!syncService.diagnostics()?.tally?.ok">
-                    {{ syncService.diagnostics()?.tally?.message || 'Check in progress or pending...' }}
-                  </div>
-
-                  @if (!syncService.diagnostics()?.tally?.ok) {
-                    <div class="guide-box">
-                      <h5 class="guide-title">How to enable Tally Prime XML HTTP Server:</h5>
-                      <ol class="guide-steps">
-                        <li>Open Tally Prime on this machine.</li>
-                        <li>Press <kbd>F1</kbd> (Help) ➔ <strong>Settings</strong> ➔ <strong>Connectivity</strong>.</li>
-                        <li>Set <strong>TallyPrime acts as</strong> to <strong>Both</strong> or <strong>Server</strong>.</li>
-                        <li>Ensure <strong>Port is 9000</strong> and <strong>Enable ODBC is Yes</strong>.</li>
-                        <li>Restart Tally Prime and test visiting <code class="font-mono">http://localhost:9000</code> in your browser.</li>
-                      </ol>
-                    </div>
-                  }
-                </div>
-              </div>
-
-              <!-- Firebase Card -->
-              <div class="diag-card glass-panel">
-                <div class="diag-card-head">
-                  <div class="diag-brand-group">
-                    <div class="diag-icon-box firebase-theme">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 class="diag-title">Google Firebase Firestore</h4>
-                      <div class="diag-subtitle">
-                        Collection: <strong class="font-mono text-white">{{ syncService.status()?.config?.firebase_collection || 'sales_vouchers' }}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  @if (syncService.diagnostics()?.firebase?.ok) {
-                    <span class="badge badge-success">Authenticated</span>
-                  } @else {
-                    <span class="badge badge-danger">Configuration Required</span>
-                  }
-                </div>
-
-                <div class="diag-card-body">
-                  <div class="diag-callout" [class.callout-success]="syncService.diagnostics()?.firebase?.ok" [class.callout-error]="!syncService.diagnostics()?.firebase?.ok">
-                    {{ syncService.diagnostics()?.firebase?.message || 'Credentials verification pending...' }}
-                  </div>
-
-                  <div class="credentials-meta-row">
-                    <span class="text-xs text-muted">Service Account Key:</span>
-                    <code class="font-mono path-chip">{{ syncService.status()?.config?.credentials_path }}</code>
-                    <span class="status-pill" [class.found]="syncService.status()?.config?.credentials_exists">
-                      {{ syncService.status()?.config?.credentials_exists ? '✓ Key Found' : '✗ File Not Found' }}
-                    </span>
-                  </div>
-
-                  @if (!syncService.diagnostics()?.firebase?.ok) {
-                    <div class="guide-box">
-                      <h5 class="guide-title">How to configure Firebase Credentials:</h5>
-                      <ol class="guide-steps">
-                        <li>Open the <strong>Firebase Console</strong> (console.firebase.google.com).</li>
-                        <li>Navigate to <strong>Project Settings</strong> ➔ <strong>Service Accounts</strong> tab.</li>
-                        <li>Click <strong>Generate New Private Key</strong>.</li>
-                        <li>Save the file as <code class="font-mono">config/serviceAccountKey.json</code> in the backend folder.</li>
-                      </ol>
-                    </div>
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        }
-      </div>
-    </section>
   </main>
-
-  <!-- ================= MODALS & DRAWERS ================= -->
-
-  <!-- Modal 1: Date Range Sync Dialog -->
-  @if (isDateRangeModalOpen()) {
-    <div class="modal-backdrop" (click)="isDateRangeModalOpen.set(false)">
-      <div class="modal-dialog glass-panel" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <div>
-            <h3 class="modal-title">Date-Range Sync</h3>
-            <p class="modal-subtitle text-muted">Extract historical vouchers from Tally Prime within specific date limits.</p>
-          </div>
-          <button class="modal-close-btn" (click)="isDateRangeModalOpen.set(false)" aria-label="Close">&times;</button>
-        </div>
-
-        <div class="modal-body">
-          <!-- Preset Chips -->
-          <div class="preset-section">
-            <span class="preset-title text-xs text-muted">Quick Range Presets:</span>
-            <div class="preset-chips">
-              <button type="button" class="preset-chip" (click)="setDatePreset('today')">Today</button>
-              <button type="button" class="preset-chip" (click)="setDatePreset('yesterday')">Yesterday</button>
-              <button type="button" class="preset-chip" (click)="setDatePreset('week')">Last 7 Days</button>
-              <button type="button" class="preset-chip" (click)="setDatePreset('month')">This Month</button>
-              <button type="button" class="preset-chip" (click)="setDatePreset('fy')">Financial Year</button>
-            </div>
-          </div>
-
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label" for="from-date-input">From Date (YYYY-MM-DD)</label>
-              <input 
-                id="from-date-input"
-                type="date" 
-                class="form-input font-mono" 
-                [ngModel]="fromDate()"
-                (ngModelChange)="fromDate.set($event)"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="to-date-input">To Date (YYYY-MM-DD)</label>
-              <input 
-                id="to-date-input"
-                type="date" 
-                class="form-input font-mono" 
-                [ngModel]="toDate()"
-                (ngModelChange)="toDate.set($event)"
-              />
-            </div>
-          </div>
-
-          <div class="checkbox-container">
-            <label class="custom-checkbox-label">
-              <input 
-                type="checkbox" 
-                class="custom-checkbox"
-                [ngModel]="dateRangeFull()"
-                (ngModelChange)="dateRangeFull.set($event)"
-              />
-              <span>Force full sync for this range (ignore existing AlterID checkpoint)</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="isDateRangeModalOpen.set(false)">Cancel</button>
-          <button type="button" class="btn btn-primary" (click)="submitDateRangeSync()">
-            Start Range Sync
-          </button>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Modal 2: Reset State Confirmation -->
-  @if (isResetConfirmOpen()) {
-    <div class="modal-backdrop" (click)="isResetConfirmOpen.set(false)">
-      <div class="modal-dialog glass-panel dialog-caution" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3 class="modal-title text-danger">Reset AlterID Watermark?</h3>
-          <button class="modal-close-btn" (click)="isResetConfirmOpen.set(false)" aria-label="Close">&times;</button>
-        </div>
-
-        <div class="modal-body">
-          <p class="dialog-text">
-            Are you sure you want to reset the sync state? This resets the tracking
-            <strong>AlterID watermark back to 0</strong>.
-          </p>
-          <p class="dialog-subtext text-muted text-sm">
-            The next sync execution will re-scan all historical vouchers from Tally. No data in Firestore will be destroyed.
-          </p>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="isResetConfirmOpen.set(false)">Cancel</button>
-          <button type="button" class="btn btn-danger-outline" (click)="confirmReset()">
-            Yes, Reset Watermark
-          </button>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Modal 3: Settings & API Configuration -->
-  @if (isSettingsModalOpen()) {
-    <div class="modal-backdrop" (click)="isSettingsModalOpen.set(false)">
-      <div class="modal-dialog glass-panel" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <div>
-            <h3 class="modal-title">Studio Settings</h3>
-            <p class="modal-subtitle text-muted">Configure backend connection and polling frequency.</p>
-          </div>
-          <button class="modal-close-btn" (click)="isSettingsModalOpen.set(false)" aria-label="Close">&times;</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label" for="api-base-url-input">FastAPI Backend Base URL</label>
-            <input 
-              id="api-base-url-input"
-              type="text" 
-              class="form-input font-mono" 
-              placeholder="http://localhost:8000"
-              [ngModel]="apiUrlInput()"
-              (ngModelChange)="apiUrlInput.set($event)"
-            />
-            <span class="form-hint text-xs text-muted">
-              Default is <code class="font-mono">http://localhost:8000</code>. Point this to your backend server.
-            </span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Auto-Refresh Interval</label>
-            <select 
-              class="form-input" 
-              [ngModel]="syncService.refreshIntervalSec()"
-              (ngModelChange)="syncService.setRefreshInterval($event)">
-              <option [value]="2">Every 2 seconds (Fast)</option>
-              <option [value]="4">Every 4 seconds (Recommended)</option>
-              <option [value]="10">Every 10 seconds</option>
-              <option [value]="30">Every 30 seconds</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="isSettingsModalOpen.set(false)">Cancel</button>
-          <button type="button" class="btn btn-primary" (click)="saveSettings()">Save & Reconnect</button>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Modal 4: Voucher Inspection Drawer / Modal -->
-  @if (selectedVoucher(); as v) {
-    <div class="modal-backdrop" (click)="closeVoucherDetail()">
-      <div class="modal-dialog glass-panel modal-inspection" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <div class="modal-title-group">
-            <div class="inspection-pill-row">
-              <span class="badge badge-info font-mono">#{{ v.voucher_number }}</span>
-              <span class="badge badge-neutral">{{ v.voucher_type || 'Sales' }}</span>
-            </div>
-            <h3 class="modal-title">{{ getPartyDisplayName(v) }}</h3>
-          </div>
-          <button class="modal-close-btn" (click)="closeVoucherDetail()" aria-label="Close">&times;</button>
-        </div>
-
-        <div class="modal-body inspection-scroll-body">
-          <!-- Metadata Grid -->
-          <div class="meta-specs-grid">
-            <div class="spec-tile">
-              <span class="spec-label">Party Name</span>
-              <span class="spec-val font-bold">{{ getPartyDisplayName(v) }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Vehicle Number</span>
-              <span class="spec-val font-mono text-accent">{{ v.vehicle_number || 'Not specified' }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Date</span>
-              <span class="spec-val font-mono">{{ v.date }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Voucher Type</span>
-              <span class="spec-val">{{ v.voucher_type || 'Sales' }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">State</span>
-              <span class="spec-val">{{ v.state_name || v.party?.state || 'N/A' }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Party GSTIN</span>
-              <span class="spec-val font-mono">{{ v.party_gstin || v.party?.gstin || 'Unregistered' }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Tally AlterID</span>
-              <span class="spec-val font-mono">{{ v.alter_id || 'N/A' }}</span>
-            </div>
-            <div class="spec-tile">
-              <span class="spec-label">Tally GUID</span>
-              <span class="spec-val font-mono text-truncate text-xs" [title]="v.guid">{{ v.guid }}</span>
-            </div>
-          </div>
-
-          <!-- Section 1: Inventory Line Items -->
-          <div class="inspection-section">
-            <div class="section-header-bar">
-              <h4 class="section-title">
-                Inventory Line Items ({{ getVoucherItems(v).length }})
-              </h4>
-            </div>
-
-            @if (getVoucherItems(v).length > 0) {
-              <div class="table-wrapper">
-                <table class="modern-table detail-table">
-                  <thead>
-                    <tr>
-                      <th>Item Description</th>
-                      <th>Billed Qty</th>
-                      <th>Rate / Unit</th>
-                      <th class="text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (item of getVoucherItems(v); track $index) {
-                      <tr>
-                        <td>
-                          <div class="font-bold text-white">{{ item.item_name }}</div>
-                          @if (item.batches && item.batches.length > 0) {
-                            <div class="batch-tags-list">
-                              @for (b of item.batches; track $index) {
-                                <span class="batch-pill">Batch: {{ b.batch_name }} ({{ b.godown_name }})</span>
-                              }
-                            </div>
-                          }
-                        </td>
-                        <td class="font-mono text-secondary">{{ item.billed_qty || (item.quantity + ' ' + (item.unit || '')) }}</td>
-                        <td class="font-mono text-secondary">
-                          ₹{{ (item.rate || 0) | number:'1.2-2' }}
-                          @if (item.unit) {
-                            <span class="text-xs text-muted">/ {{ item.unit }}</span>
-                          }
-                        </td>
-                        <td class="text-right font-mono font-bold text-white">₹{{ (item.amount || 0) | number:'1.2-2' }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            } @else {
-              <p class="text-muted text-sm empty-subtext">No inventory line items recorded in this voucher.</p>
-            }
-          </div>
-
-          <!-- Section 2: Ledger Breakdown -->
-          <div class="inspection-section">
-            <div class="section-header-bar">
-              <h4 class="section-title">
-                Ledger Allocations & Tax Accounts ({{ (v.ledger_entries || []).length }})
-              </h4>
-            </div>
-
-            @if (v.ledger_entries && v.ledger_entries.length > 0) {
-              <div class="table-wrapper">
-                <table class="modern-table detail-table">
-                  <thead>
-                    <tr>
-                      <th>Ledger Account</th>
-                      <th class="text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (ledger of v.ledger_entries; track $index) {
-                      <tr>
-                        <td class="text-secondary">{{ ledger.ledger_name }}</td>
-                        <td class="text-right font-mono font-bold text-white">
-                          ₹{{ ledger.amount | number:'1.2-2' }}
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            } @else {
-              <p class="text-muted text-sm empty-subtext">No ledger entries recorded.</p>
-            }
-          </div>
-        </div>
-
-        <div class="modal-footer inspection-footer">
-          <div class="footer-total-display">
-            <span class="total-label text-muted">Total Computed:</span>
-            <span class="total-amount font-mono">₹{{ getVoucherTotal(v) | number:'1.2-2' }}</span>
-          </div>
-          <button type="button" class="btn btn-secondary" (click)="closeVoucherDetail()">Close</button>
-        </div>
-      </div>
-    </div>
-  }
 
 </div>

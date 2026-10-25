@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   langhar:
     build:
@@ -25,4 +23,6 @@ services:
       - ./backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
       # Persist sync state so vouchers aren't re-synced after container restart
       - ./backend/.sync_state.json:/app/.sync_state.json
+      # Persist company profile local fallback config
+      - ./backend/config/company_profile.json:/app/config/company_profile.json
     restart: unless-stopped

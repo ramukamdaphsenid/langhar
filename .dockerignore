@@ -32,8 +32,6 @@ __pycache__
 *.py[cod]
 *$py.class
 .pytest_cache
-backend/tests
-**/tests
 
 # Sync state tracking files (should be preserved on host or volume)
 .sync_state.json

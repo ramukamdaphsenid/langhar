@@ -28,16 +28,33 @@ class TallyODBCClient:
         # Connect using Windows DSN
         return pyodbc.connect(f"DSN={self.dsn};", autocommit=True)
 
-    def check_connection(self) -> Tuple[bool, str]:
-        """Tests connectivity with Tally Prime via ODBC."""
+    def is_available(self, timeout: float = 0.5) -> bool:
+        """Fast check whether Tally ODBC connection is available."""
+        try:
+            ok, _ = self.check_connection()
+            return ok
+        except Exception:
+            return False
+
+    def get_active_company(self) -> Optional[str]:
+        """Queries active company name via ODBC."""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT $$CurrentCompany FROM Company")
             row = cursor.fetchone()
-            company_name = row[0] if row else "Unknown"
+            company_name = str(row[0]).strip() if row and row[0] else None
             cursor.close()
             conn.close()
+            return company_name
+        except Exception as e:
+            logger.warning(f"Could not retrieve active company via ODBC: {e}")
+            return None
+
+    def check_connection(self) -> Tuple[bool, str]:
+        """Tests connectivity with Tally Prime via ODBC."""
+        try:
+            company_name = self.get_active_company() or "Unknown"
             return True, f"Connected to Tally ODBC (DSN: {self.dsn}, Active Company: {company_name})"
         except Exception as e:
             return False, f"Tally ODBC Connection Error: {e}"
@@ -46,7 +63,8 @@ class TallyODBCClient:
         self,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
-        from_alter_id: Optional[int] = None
+        from_alter_id: Optional[int] = None,
+        company: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Queries sales vouchers using SQL via ODBC.
 
@@ -60,7 +78,7 @@ class TallyODBCClient:
         try:
             cursor = conn.cursor()
             try:
-                where_clauses = ["$VoucherTypeName = 'Sales'"]
+                where_clauses = ["($VoucherTypeName = 'RICE SALES' OR $VoucherTypeName = 'RICE SALES TAXABLE')"]
                 if from_date:
                     where_clauses.append(f"$Date >= '{from_date}'")
                 if to_date:
@@ -72,7 +90,7 @@ class TallyODBCClient:
                 sql = f"""
                     SELECT $Guid, $AlterID, $MasterID, $VoucherNumber, $Date, $PartyLedgerName,
                            $PartyName, $StateName, $PartyGSTIN, $Amount, $Narration, $Reference,
-                           $BasicShipVesselNo
+                           $BasicShipVesselNo, $VoucherTypeName
                     FROM Voucher
                     WHERE {where_sql}
                 """
@@ -102,6 +120,10 @@ class TallyODBCClient:
             narration = str(r[10] or "")
             ref = str(r[11] or "")
             vehicle_no = str(r[12] or "").strip() if len(r) > 12 else ""
+            voucher_type = str(r[13] or "RICE SALES").strip() if len(r) > 13 and r[13] else "RICE SALES"
+
+            if voucher_type.upper() not in {"RICE SALES", "RICE SALES TAXABLE"}:
+                continue
 
             # Fallback regex on narration if vehicle_no empty
             if not vehicle_no and narration:
@@ -124,7 +146,8 @@ class TallyODBCClient:
                 "alter_id": alter_id,
                 "master_id": master_id,
                 "voucher_number": voucher_number,
-                "voucher_type": "Sales",
+                "voucher_type": voucher_type,
+                "company_name": company or self.get_active_company() or "",
                 "date": date_raw,
                 "vehicle_number": vehicle_no,
                 "party_name": party_name,

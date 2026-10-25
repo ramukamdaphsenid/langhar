@@ -3,14 +3,14 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import {
   DiagnosticsResponse,
-  LogEntry,
-  LogsResponse,
   SyncRequestPayload,
   SyncResult,
   SyncStatusResponse,
   VoucherItem,
   VouchersResponse
 } from '../models/sync.models';
+import { CompanyProfile } from '../models/company.model';
+import { ALLOWED_VOUCHER_TYPES } from './bill.mapper';
 
 @Injectable({
   providedIn: 'root'
@@ -25,9 +25,8 @@ export class SyncApiService {
   // Application State Signals
   readonly status = signal<SyncStatusResponse | null>(null);
   readonly diagnostics = signal<DiagnosticsResponse | null>(null);
-  readonly logs = signal<LogEntry[]>([]);
   readonly vouchers = signal<VoucherItem[]>([]);
-  readonly vouchersSource = signal<'live' | 'mock'>('live');
+  readonly vouchersSource = signal<'live' | 'firestore' | 'mock'>('live');
   readonly isSyncing = signal<boolean>(false);
   readonly isBackendOnline = signal<boolean>(false);
   readonly isCheckingHealth = signal<boolean>(false);
@@ -103,22 +102,63 @@ export class SyncApiService {
     );
   }
 
-  fetchLogs(limit: number = 100): Observable<LogEntry[]> {
-    return this.http.get<LogsResponse>(this.getUrl(`/api/logs?limit=${limit}`)).pipe(
-      map((res) => res.logs || []),
-      tap((logs) => {
-        this.logs.set(logs);
-      }),
-      catchError(() => of([]))
+  testTally(): Observable<boolean> {
+    this.isCheckingHealth.set(true);
+    this.activeActionMessage.set('Connecting to Tally Prime XML HTTP on port 9000...');
+    return this.fetchDiagnostics().pipe(
+      map((res) => {
+        const ok = !!res?.tally?.ok;
+        if (ok) {
+          this.activeActionMessage.set('Tally Prime connection verified! XML HTTP endpoint is active on port 9000.');
+        } else {
+          this.errorMessage.set(res?.tally?.message || 'Tally Prime is unreachable on port 9000. Verify Tally is open and Server mode is enabled.');
+        }
+        setTimeout(() => this.clearActionMessage(), 5000);
+        return ok;
+      })
     );
   }
 
-  fetchVouchers(limit: number = 60, search: string = ''): Observable<VoucherItem[]> {
-    let url = `/api/vouchers/sample?limit=${limit}`;
+  testFirebase(): Observable<boolean> {
+    this.isCheckingHealth.set(true);
+    this.activeActionMessage.set('Testing authentication with Google Firebase Firestore...');
+    return this.fetchDiagnostics().pipe(
+      map((res) => {
+        const ok = !!res?.firebase?.ok;
+        if (ok) {
+          this.activeActionMessage.set('Firebase Firestore connection verified! Service account key authenticated.');
+        } else {
+          this.errorMessage.set(res?.firebase?.message || 'Failed to authenticate with Firebase Firestore.');
+        }
+        setTimeout(() => this.clearActionMessage(), 5000);
+        return ok;
+      })
+    );
+  }
+
+  fetchVouchers(limit?: number, search: string = '', sourcePref?: 'live' | 'firestore' | 'auto'): Observable<VoucherItem[]> {
+    let url = `/api/vouchers/sample`;
+    const params: string[] = [];
+    if (limit && limit > 0) {
+      params.push(`limit=${limit}`);
+    }
     if (search.trim()) {
-      url += `&search=${encodeURIComponent(search.trim())}`;
+      params.push(`search=${encodeURIComponent(search.trim())}`);
+    }
+    if (sourcePref && sourcePref !== 'auto') {
+      params.push(`source_pref=${encodeURIComponent(sourcePref)}`);
+    }
+    if (params.length > 0) {
+      url += `?${params.join('&')}`;
     }
     return this.http.get<VouchersResponse>(this.getUrl(url)).pipe(
+      map((res) => {
+        const rawList = res.vouchers || [];
+        const filtered = rawList.filter((v) =>
+          ALLOWED_VOUCHER_TYPES.has((v.voucher_type || '').trim().toUpperCase())
+        );
+        return { ...res, vouchers: filtered };
+      }),
       tap((res) => {
         this.vouchers.set(res.vouchers || []);
         this.vouchersSource.set(res.source || 'live');
@@ -142,7 +182,6 @@ export class SyncApiService {
           `Sync ${result.status}: Processed ${result.synced_count ?? 0} voucher(s) in ${result.elapsed_seconds ?? 0}s.`
         );
         this.fetchStatus().subscribe();
-        this.fetchLogs().subscribe();
         this.fetchVouchers().subscribe();
       }),
       catchError((err: HttpErrorResponse) => {
@@ -163,7 +202,6 @@ export class SyncApiService {
       tap(() => {
         this.activeActionMessage.set('Daemon scheduler active.');
         this.fetchStatus().subscribe();
-        this.fetchLogs().subscribe();
       }),
       catchError((err) => {
         this.errorMessage.set(err.error?.detail || 'Failed to start daemon');
@@ -178,7 +216,6 @@ export class SyncApiService {
       tap(() => {
         this.activeActionMessage.set('Daemon scheduler stopped.');
         this.fetchStatus().subscribe();
-        this.fetchLogs().subscribe();
       }),
       catchError((err) => {
         this.errorMessage.set(err.error?.detail || 'Failed to stop daemon');
@@ -193,11 +230,42 @@ export class SyncApiService {
       tap(() => {
         this.activeActionMessage.set('State reset. Next sync will perform a full pull.');
         this.fetchStatus().subscribe();
-        this.fetchLogs().subscribe();
       }),
       catchError((err) => {
         this.errorMessage.set(err.error?.detail || 'Failed to reset state');
         return of(null);
+      })
+    );
+  }
+
+  clearFirestoreData(): Observable<any> {
+    this.activeActionMessage.set('Clearing Firestore collection data & resetting watermark...');
+    return this.http.post(this.getUrl('/api/firestore/clear'), {}).pipe(
+      tap((res: any) => {
+        this.activeActionMessage.set(res?.message || 'Firestore data cleared successfully!');
+        this.fetchStatus().subscribe();
+        this.fetchVouchers().subscribe();
+      }),
+      catchError((err) => {
+        const msg = err.error?.detail || err.message || 'Failed to clear Firestore data';
+        this.errorMessage.set(msg);
+        return throwError(() => err);
+      })
+    );
+  }
+
+  cleanupFirestoreDuplicates(): Observable<any> {
+    this.activeActionMessage.set('Scanning and removing duplicate/redundant Firestore documents...');
+    return this.http.post(this.getUrl('/api/firestore/cleanup'), {}).pipe(
+      tap((res: any) => {
+        this.activeActionMessage.set(res?.message || 'Firestore duplicates cleanup complete!');
+        this.fetchStatus().subscribe();
+        this.fetchVouchers().subscribe();
+      }),
+      catchError((err) => {
+        const msg = err.error?.detail || err.message || 'Failed to cleanup Firestore duplicates';
+        this.errorMessage.set(msg);
+        return throwError(() => err);
       })
     );
   }
@@ -241,7 +309,10 @@ export class SyncApiService {
       this.refreshTimer = setTimeout(() => {
         if (this.autoRefreshEnabled()) {
           this.fetchStatus().subscribe(() => {
-            this.fetchLogs().subscribe();
+            // Periodically refresh diagnostics to track Tally live connection state
+            if (Math.random() < 0.35) {
+              this.fetchDiagnostics().subscribe();
+            }
             scheduleNext();
           });
         }
@@ -262,7 +333,6 @@ export class SyncApiService {
   refreshAll(): void {
     this.fetchStatus().subscribe();
     this.fetchDiagnostics().subscribe();
-    this.fetchLogs().subscribe();
     this.fetchVouchers().subscribe();
   }
 
@@ -272,5 +342,20 @@ export class SyncApiService {
 
   clearActionMessage(): void {
     this.activeActionMessage.set(null);
+  }
+
+  fetchCompanyProfile(): Observable<CompanyProfile | null> {
+    return this.http.get<CompanyProfile>(this.getUrl('/api/settings/company')).pipe(
+      catchError((err) => {
+        console.warn('[SyncApiService] Could not load company profile from server:', err);
+        return of(null);
+      })
+    );
+  }
+
+  saveCompanyProfile(profile: CompanyProfile): Observable<any> {
+    return this.http.post(this.getUrl('/api/settings/company'), profile).pipe(
+      catchError((err) => throwError(() => err))
+    );
   }
 }

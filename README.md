@@ -36,7 +36,7 @@ By default, Tally Prime has its local XML/ODBC server disabled. To enable it:
 
 ### 2. Identifying & Querying Sales Vouchers via XML/TDL
 When querying Tally, the sync engine sends an HTTP `POST` request with a **TDL (Tally Definition Language)** XML payload:
-- **Sales Voucher Filter**: Uses `$$IsSales:$VoucherTypeName` to capture standard sales invoices as well as custom sales types (e.g., *Tax Invoice*, *Export Sales*, *Cash Sales*).
+- **Sales Voucher Filter**: Strictly filtered to target only **`RICE SALES`** and **`RICE SALES TAXABLE`** voucher types: `($VoucherTypeName = "RICE SALES") OR ($VoucherTypeName = "RICE SALES TAXABLE")`.
 - **Incremental Filter**: Uses `$AlterID > [LAST_ALTER_ID]`. Every time a voucher is created or edited in Tally, Tally increments its internal `AlterID`.
 - **Field Fetching**: Uses `<FETCH>` to extract:
   - `GUID`, `ALTERID`, `MASTERID`, `VOUCHERNUMBER`, `DATE`
@@ -50,29 +50,29 @@ When querying Tally, the sync engine sends an HTTP `POST` request with a **TDL (
 
 ```
 d:/langhar/
-├── config/
-│   ├── __init__.py
-│   └── settings.py               # Pydantic environment configurations
-├── src/
-│   ├── tally/
-│   │   ├── client.py             # Tally XML HTTP client (POST to :9000)
-│   │   ├── queries.py            # TDL XML request generator
-│   │   ├── parser.py             # Robust XML to Python dict converter
-│   │   └── odbc_client.py        # Optional Windows ODBC client
-│   ├── firebase/
-│   │   └── client.py             # Firestore client with batch writes
-│   ├── sync/
-│   │   ├── engine.py             # Sync coordinator
-│   │   └── state.py              # Local .sync_state.json manager
-│   └── utils/
-│       └── logger.py             # Rich console formatting
-├── tests/
-│   ├── mock_sales_vouchers.xml   # Realistic sample Tally XML
-│   └── test_sync.py              # Automated test suite
-├── .env.example                  # Environment configuration template
-├── requirements.txt              # Python dependencies
-├── main.py                       # CLI interface
-└── README.md                     # Documentation
+├── backend/                          # Python FastAPI & Tally→Firebase sync engine
+│   ├── api.py                        # FastAPI REST API (sync, daemon, settings, SPA serving)
+│   ├── main.py                       # Click CLI interface (check / sync / daemon / status / reset-state / export-sample)
+│   ├── config/                       # Pydantic environment settings & company profile
+│   │   ├── settings.py
+│   │   └── company_profile.json
+│   ├── src/
+│   │   ├── tally/                    # Tally XML HTTP client, TDL query, XML parser, ODBC client
+│   │   ├── firebase/                 # Firestore client with batch writes
+│   │   ├── sync/                     # Sync engine & state manager
+│   │   └── utils/                    # Logger, company helper
+│   ├── tests/                        # Unit tests & mock Tally XML
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/                         # Angular 22 standalone web UI
+│   ├── src/app/                      # Components, models & services
+│   ├── public/                       # Static assets (logo, favicons)
+│   └── ...
+├── docker-compose.yml                # Unified container (FastAPI + static Angular build)
+├── Dockerfile
+├── run-docker.bat
+├── start-local.bat
+└── README.md
 ```
 
 ---
@@ -186,7 +186,7 @@ Each sales voucher is stored in Firestore with the document ID: `tally_{GUID}`:
   "alter_id": 10045,
   "master_id": 5001,
   "voucher_number": "INV-2024-001",
-  "voucher_type": "Sales",
+  "voucher_type": "RICE SALES",
   "date": "2024-04-15",
   "effective_date": "2024-04-15",
   "party": {
@@ -303,6 +303,16 @@ Double-click or run:
 docker compose up -d --build
 ```
 
+### Development with Docker (Live Reload)
+Use the development Compose file when changing application code:
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+Or run `.\run-docker-dev.bat` on Windows. Open `http://localhost:4200`; Angular reloads when frontend files change, and FastAPI restarts when backend Python files change. Stop the development services with `Ctrl+C` (or run `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`).
+
+The standard Compose setup above remains the production-style single container, serving the built UI at `http://localhost:8000`; rebuild it after changes with `docker compose up -d --build`.
+
+### Share a Docker Image (Windows)
+Run `.\export-docker.bat` to build the application and create `docker-share\langhar-image.tar` with a recipient launcher. Share the whole `docker-share` folder; on the recipient machine, run `run-langhar.bat`. The recipient needs Docker Desktop and must be able to run the same CPU architecture as the machine that exported the image. The launcher loads the included image, replaces any older shared container, waits for its health check, and preserves sync state in a Docker volume. To enable Firebase, place the recipient's own `serviceAccountKey.json` beside `run-langhar.bat`; credentials are not included in the exported image.
+
 > **Note on Tally Connectivity**: The container uses `host.docker.internal` to communicate with Tally Prime running on the Windows host on port 9000.
-
-
