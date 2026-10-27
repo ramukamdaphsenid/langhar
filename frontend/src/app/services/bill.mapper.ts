@@ -1,5 +1,5 @@
 import { SaleItem, SaleRecord } from '../models/bill.model';
-import type { VoucherItem } from '../models/sync.models';
+import type { VoucherItem } from '../models/tally-voucher.model';
 
 export interface TallyLineEntry {
   ITEMNAME?: string;
@@ -326,6 +326,7 @@ export const mapSalesXml = (xml: string): SaleRecord[] => {
 
     records.push({
       voucherNumber,
+      voucherType: vchType,
       dateISO: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
       partyName,
       partyGstin: partyGstin || undefined,
@@ -335,7 +336,6 @@ export const mapSalesXml = (xml: string): SaleRecord[] => {
       items,
       totalAmount: total,
       totalGst,
-      udfs: Object.keys(udfs).length ? udfs : undefined,
       rowId: `${date.getTime()}-${voucherNumber}-${index}-${guid}`,
     });
     index += 1;
@@ -365,7 +365,7 @@ const parseGst = (body: string): number | undefined => {
   return found ? total : undefined;
 };
 
-/** Converts a backend VoucherItem from the sync service into a SaleRecord shape for PDF generation. */
+/** Converts a live Tally voucher into a SaleRecord shape for PDF generation. */
 export const mapVoucherToSaleRecord = (v: VoucherItem): SaleRecord => {
   let dateISO = '';
   if (v.date) {
@@ -446,6 +446,7 @@ export const mapVoucherToSaleRecord = (v: VoucherItem): SaleRecord => {
 
   return {
     voucherNumber: v.voucher_number || 'N/A',
+    voucherType: v.voucher_type,
     dateISO,
     partyName,
     partyAddress,
@@ -457,8 +458,6 @@ export const mapVoucherToSaleRecord = (v: VoucherItem): SaleRecord => {
     items,
     totalAmount,
     totalGst,
-    udfs: Object.keys(udfs).length ? udfs : undefined,
     rowId,
-    rawVoucher: v,
   };
 };

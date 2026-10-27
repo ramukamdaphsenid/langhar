@@ -3,7 +3,11 @@
 Tally Prime uses XML over HTTP (port 9000 by default).
 Requests are structured using Tally Definition Language (TDL) envelopes.
 """
-from typing import Optional
+from typing import Optional, Sequence
+from xml.sax.saxutils import escape
+
+
+VOUCHER_SCREEN_TYPES = ("RICE SALES", "RICE SALES TAXABLE")
 
 
 def build_company_info_query() -> str:
@@ -31,36 +35,24 @@ def build_company_info_query() -> str:
 
 
 
-def build_active_company_query() -> str:
-    """Safe native List of Companies request."""
-    return build_company_info_query()
-
-
-def build_sales_vouchers_query(
+def build_vouchers_query(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
-    from_alter_id: Optional[int] = None,
-    company: Optional[str] = None
+    company: Optional[str] = None,
+    voucher_types: Optional[Sequence[str]] = None,
 ) -> str:
-    """Builds a TDL Collection XML query to extract sales vouchers with full nested details.
+    """Build a TDL query for all voucher types or a selected set of types.
 
     Args:
         from_date: Start date in YYYYMMDD format (e.g. '20240401'). Defaults to beginning of financial year if omitted.
         to_date: End date in YYYYMMDD format (e.g. '20240430'). Defaults to current date if omitted.
-        from_alter_id: If provided, fetches vouchers where $ALTERID > from_alter_id (for incremental sync).
         company: Optional target company name in Tally.
+        voucher_types: Optional voucher type names to include in the export.
     """
     # Build Static Variables block
     static_vars = ["<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>"]
-    if company and company.strip():
-        clean_company = (
-            company.strip()
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
-        static_vars.append(f"<SVCURRENTCOMPANY>{clean_company}</SVCURRENTCOMPANY>")
+    # `company` is retained for call compatibility, but deliberately not sent as
+    # SVCURRENTCOMPANY: Tally's XML implementation can crash on context switching.
     if from_date:
         static_vars.append(f"<SVFROMDATE>{from_date}</SVFROMDATE>")
     if to_date:
@@ -68,31 +60,41 @@ def build_sales_vouchers_query(
 
     static_vars_xml = "\n        ".join(static_vars)
 
-    # Build Filter formulas: Filter strictly for RICE SALES and RICE SALES TAXABLE
-    filters = ["<FILTER>IsRiceSalesVoucher</FILTER>"]
-    formulae = [
-        """<SYSTEM TYPE="Formulae" NAME="IsRiceSalesVoucher">
-            ($VoucherTypeName = "RICE SALES") OR ($VoucherTypeName = "RICE SALES TAXABLE")
-          </SYSTEM>"""
-    ]
+    filters = []
+    formulae = []
 
-    if from_alter_id is not None and from_alter_id > 0:
-        filters.append("<FILTER>FilterByAlterId</FILTER>")
+    if voucher_types:
+        escaped_types = [escape(voucher_type, {'"': "&quot;"}) for voucher_type in voucher_types]
+        type_checks = " OR ".join(
+            f'$$IsEqual:$VoucherTypeName:"{voucher_type}"' for voucher_type in escaped_types
+        )
+        filters.append("<FILTER>FilterByVoucherType</FILTER>")
         formulae.append(
-            f"""<SYSTEM TYPE="Formulae" NAME="FilterByAlterId">
-            $AlterID &gt; {from_alter_id}
-          </SYSTEM>"""
+            f'<SYSTEM TYPE="Formulae" NAME="FilterByVoucherType">{type_checks}</SYSTEM>'
         )
 
     filters_xml = "\n              ".join(filters)
     formulae_xml = "\n          ".join(formulae)
 
-    # Request full voucher fields
+    # Fetch only data rendered on the voucher screen and its invoice/delivery actions.
     fetch_fields = (
-        "GUID,ALTERID,MASTERID,VOUCHERNUMBER,DATE,EFFECTIVEDATE,VOUCHERTYPENAME,"
-        "PARTYLEDGERNAME,PARTYNAME,STATENAME,PLACEOFSUPPLY,PARTYGSTIN,GSTREGISTRATIONTYPE,"
-        "BASICSHIPVESSELNO,VEHICLENO,BASICSHIPPEDBY,EWAYBILLDETAILS.LIST,"
-        "NARRATION,REFERENCE,ALLLEDGERENTRIES.LIST,ALLINVENTORYENTRIES.LIST"
+        "GUID,VOUCHERNUMBER,DATE,VOUCHERTYPENAME,"
+        "PARTYLEDGERNAME,PARTYNAME,STATENAME,PLACEOFSUPPLY,PARTYGSTIN,"
+        "BASICSHIPVESSELNO,VEHICLENO,EWAYBILLDETAILS.LIST.VEHICLENO,"
+        "EWAYBILLDETAILS.LIST.BASICSHIPVESSELNO,NARRATION,REFERENCE,"
+        "ALLLEDGERENTRIES.LIST.LEDGERNAME,ALLLEDGERENTRIES.LIST.AMOUNT,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.STOCKITEMNAME,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.BILLEDQTY,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.ACTUALQTY,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.RATE,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.AMOUNT,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.BATCHALLOCATIONS.LIST.BATCHNAME,"
+        "ALLLEDGERENTRIES.LIST.INVENTORYALLOCATIONS.LIST.BATCHALLOCATIONS.LIST.GODOWNNAME,"
+        "ALLINVENTORYENTRIES.LIST.STOCKITEMNAME,ALLINVENTORYENTRIES.LIST.BILLEDQTY,"
+        "ALLINVENTORYENTRIES.LIST.ACTUALQTY,ALLINVENTORYENTRIES.LIST.RATE,"
+        "ALLINVENTORYENTRIES.LIST.AMOUNT,"
+        "ALLINVENTORYENTRIES.LIST.BATCHALLOCATIONS.LIST.BATCHNAME,"
+        "ALLINVENTORYENTRIES.LIST.BATCHALLOCATIONS.LIST.GODOWNNAME"
     )
 
     query = f"""<ENVELOPE>
@@ -100,7 +102,7 @@ def build_sales_vouchers_query(
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Collection</TYPE>
-    <ID>SalesVoucherCollection</ID>
+    <ID>VoucherCollection</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -109,7 +111,7 @@ def build_sales_vouchers_query(
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
-          <COLLECTION NAME="SalesVoucherCollection" ISMODIFY="No">
+          <COLLECTION NAME="VoucherCollection" ISMODIFY="No">
             <TYPE>Voucher</TYPE>
             <FETCH>{fetch_fields}</FETCH>
             {filters_xml}
@@ -121,3 +123,12 @@ def build_sales_vouchers_query(
   </BODY>
 </ENVELOPE>"""
     return query
+
+
+def build_sales_vouchers_query(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    company: Optional[str] = None
+) -> str:
+    """Backward-compatible alias; query now exports every voucher type."""
+    return build_vouchers_query(from_date, to_date, company)

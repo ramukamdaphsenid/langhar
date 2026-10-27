@@ -10,19 +10,10 @@ services:
       # Connect to Tally running on the Windows host machine
       - TALLY_HOST=http://host.docker.internal
       - TALLY_PORT=9000
-      - FIREBASE_CREDENTIALS_PATH=serviceAccountKey.json
-      - FIREBASE_COLLECTION_NAME=sales_vouchers
-      - SYNC_INTERVAL_SECONDS=120
-      - SYNC_STATE_FILE=.sync_state.json
-      - BATCH_SIZE=100
     extra_hosts:
       # Enables container-to-host connectivity on Windows/Linux
       - "host.docker.internal:host-gateway"
     volumes:
-      # Mount Firebase service account key from host if available
-      - ./backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
-      # Persist sync state so vouchers aren't re-synced after container restart
-      - ./backend/.sync_state.json:/app/.sync_state.json
-      # Persist company profile local fallback config
+      # Keep the configured document profile available to the API
       - ./backend/config/company_profile.json:/app/config/company_profile.json
     restart: unless-stopped

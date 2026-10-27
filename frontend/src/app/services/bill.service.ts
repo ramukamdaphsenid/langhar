@@ -1,35 +1,26 @@
 import { Injectable } from '@angular/core';
 import type { SaleRecord } from '../models/bill.model';
-import { environment } from '../../environments/environment';
 import { lexendVfs, lexendFontMap } from './lexend-fonts';
-import { CompanyProfile, DEFAULT_COMPANY_PROFILE } from '../models/company.model';
+import { CompanyProfile } from '../models/company.model';
 import { buildDeliveryNoteDoc, buildInvoiceDoc } from './bill-pdf.builder';
 import type { TDocumentDefinitions } from 'pdfmake/interfaces';
 
-export type BillConfig = CompanyProfile;
-
 @Injectable({ providedIn: 'root' })
 export class BillService {
-  private readonly storageKey = 'langhar_company_profile';
   private config: CompanyProfile = this.loadInitialConfig();
   private pdfMakePromise: Promise<any> | null = null;
   private logoBase64: string | null = null;
 
   private loadInitialConfig(): CompanyProfile {
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(this.storageKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          return { ...DEFAULT_COMPANY_PROFILE, ...parsed };
-        }
-      } catch {}
-    }
     return {
-      ...DEFAULT_COMPANY_PROFILE,
-      company_name: environment.companyName || DEFAULT_COMPANY_PROFILE.company_name,
-      address: environment.address || DEFAULT_COMPANY_PROFILE.address,
-      gstin: environment.gstin || DEFAULT_COMPANY_PROFILE.gstin,
+      company_name: '',
+      tagline: '',
+      address: '',
+      state: '',
+      gstin: '',
+      pan: '',
+      phone: '',
+      email: '',
     };
   }
 
@@ -37,49 +28,14 @@ export class BillService {
     return { ...this.config };
   }
 
-  setCompanyProfile(profile: Partial<CompanyProfile>, overwrite = false): void {
-    if (overwrite) {
-      this.config = { ...DEFAULT_COMPANY_PROFILE, ...profile };
-    } else {
-      this.config = { ...this.config, ...profile };
-    }
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(this.storageKey, JSON.stringify(this.config));
-      } catch {}
-    }
+  activateCompany(_companyId: string, companyName: string): void {
+    this.config = { ...this.loadInitialConfig(), company_name: companyName.trim() };
   }
 
-  getSampleSaleRecord(): SaleRecord {
-    return {
-      voucherNumber: 'INV-2026-0042',
-      dateISO: new Date().toISOString().slice(0, 10),
-      partyName: 'Sri Raghavendra Traders',
-      partyAddress: 'Shop #14, APMC Market Yard, Yeshwanthpur, Bengaluru 560022',
-      partyState: 'Karnataka (29)',
-      partyGstin: '29ABCDE1234F1Z5',
-      deliveryNote: 'DEL-8841',
-      items: [
-        {
-          name: 'Langhar Sona Masoori Raw Rice (26kg Bag)',
-          quantity: 100,
-          unit: 'BAG',
-          rate: 1450,
-          amount: 145000,
-        },
-        {
-          name: 'Langhar Steam Rice Royal (50kg Bag)',
-          quantity: 40,
-          unit: 'BAG',
-          rate: 2650,
-          amount: 106000,
-        },
-      ],
-      totalAmount: 263550,
-      totalGst: 12550,
-      narration: 'Payment due in 15 days via RTGS/NEFT to our specified bank account.',
-      rowId: 'sample-voucher-preview',
-    };
+  setCompanyProfile(profile: Partial<CompanyProfile>, overwrite = false): void {
+    this.config = overwrite
+      ? { ...this.loadInitialConfig(), ...profile }
+      : { ...this.config, ...profile };
   }
 
   private loadPdfMake(): Promise<any> {
@@ -117,7 +73,7 @@ export class BillService {
     }
   }
 
-  private async generatePdf(sale: SaleRecord, builder: (logoDataUri: string) => TDocumentDefinitions): Promise<Blob> {
+  private async generatePdf(builder: (logoDataUri: string) => TDocumentDefinitions): Promise<Blob> {
     const [pdfModule, logoDataUri] = await Promise.all([
       this.loadPdfMake(),
       this.loadLogo(),
@@ -133,15 +89,12 @@ export class BillService {
     return blob;
   }
 
-  async openPdf(sale: SaleRecord): Promise<void> {
-    const blob = await this.generatePdf(sale, (logoDataUri) => buildInvoiceDoc(sale, this.config, logoDataUri));
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  async generateInvoicePdf(sale: SaleRecord): Promise<Blob> {
+    return this.generatePdf((logoDataUri) => buildInvoiceDoc(sale, this.config, logoDataUri));
   }
 
   async downloadPdf(sale: SaleRecord): Promise<void> {
-    const blob = await this.generatePdf(sale, (logoDataUri) => buildInvoiceDoc(sale, this.config, logoDataUri));
+    const blob = await this.generateInvoicePdf(sale);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -152,15 +105,12 @@ export class BillService {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
-  async openDeliveryNotePdf(sale: SaleRecord): Promise<void> {
-    const blob = await this.generatePdf(sale, (logoDataUri) => buildDeliveryNoteDoc(sale, this.config, logoDataUri));
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  async generateDeliveryNotePdf(sale: SaleRecord): Promise<Blob> {
+    return this.generatePdf((logoDataUri) => buildDeliveryNoteDoc(sale, this.config, logoDataUri));
   }
 
   async downloadDeliveryNotePdf(sale: SaleRecord): Promise<void> {
-    const blob = await this.generatePdf(sale, (logoDataUri) => buildDeliveryNoteDoc(sale, this.config, logoDataUri));
+    const blob = await this.generateDeliveryNotePdf(sale);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

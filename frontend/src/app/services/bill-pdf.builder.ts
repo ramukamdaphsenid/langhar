@@ -29,6 +29,22 @@ const C = {
   white: '#ffffff',
 };
 
+function getPdfDensity(itemCount: number) {
+  if (itemCount > 30) {
+    return { itemFontSize: 4.5, tablePadding: 0, headerPadding: 0, logoSize: 16, compact: true, ultraCompact: true };
+  }
+  if (itemCount > 22) {
+    return { itemFontSize: 5, tablePadding: 0, headerPadding: 1, logoSize: 20, compact: true, ultraCompact: true };
+  }
+  if (itemCount > 15) {
+    return { itemFontSize: 6, tablePadding: 0, headerPadding: 2, logoSize: 24, compact: true, ultraCompact: false };
+  }
+  if (itemCount > 10) {
+    return { itemFontSize: 6.5, tablePadding: 1, headerPadding: 3, logoSize: 32, compact: true, ultraCompact: false };
+  }
+  return { itemFontSize: 8, tablePadding: 3, headerPadding: 6, logoSize: 55, compact: false, ultraCompact: false };
+}
+
 function formatDate(iso: string): string {
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y.slice(2)}`;
@@ -48,6 +64,7 @@ function formatItemQty(item: SaleItem): string {
 
 export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDataUri: string): TDocumentDefinitions {
     const dateStr = formatDate(sale.dateISO);
+    const density = getPdfDensity(sale.items.length);
 
     const subtotal = sale.totalGst != null
       ? sale.totalAmount - sale.totalGst
@@ -66,7 +83,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
               [
                 {
                   image: logoDataUri,
-                  fit: [65, 65],
+                  fit: [density.logoSize, density.logoSize],
                   margin: [0, 0, 0, 0],
                   border: [false, false, false, false],
                 },
@@ -76,11 +93,11 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
                       text: config.company_name,
                       style: 'companyName',
                     },
-                    ...(config.tagline ? [{ text: config.tagline, style: 'companyTagline', margin: [0, 1, 0, 0] as [number, number, number, number] }] : []),
+                    ...(config.tagline ? [{ text: config.tagline, style: 'companyTagline', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }] : []),
                     {
                       text: config.address,
                       style: 'companySub',
-                      margin: [0, 2, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number],
                     },
                     {
                       text: [
@@ -89,7 +106,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
                         ...(config.state ? [{ text: `  |  State: ${config.state}` }] : []),
                       ],
                       style: 'companySub',
-                      margin: [0, 2, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number],
                     },
                     ...((config.phone || config.email) ? [{
                       text: [
@@ -98,7 +115,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
                         ...(config.email ? [{ text: `Email: ${config.email}` }] : []),
                       ],
                       style: 'companySub',
-                      margin: [0, 1, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number],
                     }] : []),
                   ],
                   border: [false, false, false, false],
@@ -112,8 +129,8 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
             vLineWidth: () => 0,
             paddingLeft: () => 8,
             paddingRight: () => 8,
-            paddingTop: () => 8,
-            paddingBottom: () => 8,
+            paddingTop: () => density.headerPadding,
+            paddingBottom: () => density.headerPadding,
           },
         },
         {
@@ -128,7 +145,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
               lineColor: C.gold,
             },
           ],
-          margin: [0, 0, 0, 8],
+          margin: [0, 0, 0, density.compact ? 3 : 6],
         },
       ],
     };
@@ -142,18 +159,15 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
             {
               stack: [
                 { text: 'BILL TO', style: 'sectionLabel' },
-                { text: sale.partyName, style: 'infoValueBold', margin: [0, 3, 0, 0] as [number, number, number, number] },
+                { text: sale.partyName, style: 'infoValueBold', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
                 ...(sale.partyAddress
-                  ? [{ text: sale.partyAddress, style: 'infoSmall', margin: [0, 2, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: sale.partyAddress, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number] }]
                   : []),
                 ...(sale.partyState
-                  ? [{ text: `State: ${sale.partyState}`, style: 'infoSmall', margin: [0, 1, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: `State: ${sale.partyState}`, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }]
                   : []),
                 ...(sale.partyGstin
-                  ? [{ text: `GSTIN: ${sale.partyGstin}`, style: 'infoSmall', margin: [0, 1, 0, 0] as [number, number, number, number] }]
-                  : []),
-                ...(sale.truckNumber
-                  ? [{ text: `Truck / Vehicle No: ${sale.truckNumber}`, style: 'infoSmall', margin: [0, 1, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: `GSTIN: ${sale.partyGstin}`, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }]
                   : []),
               ],
               border: [false, false, false, false],
@@ -161,10 +175,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
             },
             {
               stack: [
-                { text: 'TAX INVOICE', style: 'docBadge', alignment: 'right' },
-                { text: 'INVOICE NO', style: 'sectionLabel', alignment: 'right', margin: [0, 4, 0, 0] as [number, number, number, number] },
-                { text: sale.voucherNumber || '—', style: 'infoValueBold', alignment: 'right' },
-                { text: 'DATE', style: 'sectionLabel', alignment: 'right', margin: [0, 4, 0, 0] as [number, number, number, number] },
+                { text: 'DATE', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 4, 0, 0] as [number, number, number, number] },
                 { text: dateStr, style: 'infoValueBold', alignment: 'right' },
               ],
               border: [false, false, false, false],
@@ -178,8 +189,8 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
         vLineWidth: () => 0,
         paddingLeft: () => 10,
         paddingRight: () => 10,
-        paddingTop: () => 8,
-        paddingBottom: () => 8,
+        paddingTop: () => density.headerPadding,
+        paddingBottom: () => density.headerPadding,
       },
       margin: [0, 0, 0, 8] as [number, number, number, number],
     };
@@ -243,10 +254,10 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
         hLineWidth: (i) => (i === 1 ? 1 : 0),
         vLineWidth: () => 0,
         hLineColor: () => C.border,
-        paddingLeft: () => 6,
-        paddingRight: () => 6,
-        paddingTop: () => 5,
-        paddingBottom: () => 5,
+        paddingLeft: () => density.compact ? 3 : 6,
+        paddingRight: () => density.compact ? 3 : 6,
+        paddingTop: () => density.tablePadding,
+        paddingBottom: () => density.tablePadding,
         fillColor: (rowIndex) => {
           if (rowIndex === 0) return '#f5f3e8';
           return null;
@@ -325,79 +336,24 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
         hLineColor: () => C.gold,
         paddingLeft: () => 6,
         paddingRight: () => 6,
-        paddingTop: () => 4,
-        paddingBottom: () => 4,
+        paddingTop: () => density.tablePadding,
+        paddingBottom: () => density.tablePadding,
       },
       margin: [0, 0, 0, 6] as [number, number, number, number],
     };
-
-    // ── Narration (if present) ─────────────────────────────────────
-    const narrationBlock: Content | null = sale.narration
-      ? {
-          stack: [
-            {
-              text: 'NOTES',
-              style: 'sectionLabel',
-              margin: [0, 0, 0, 3],
-            },
-            {
-              text: sale.narration,
-              style: 'narrationText',
-            },
-          ],
-          margin: [0, 6, 0, 0] as [number, number, number, number],
-        }
-      : null;
-
-    // ── Bank Account Remittance Info (if configured) ─────────────
-    const hasBank = !!(config.bank_name || config.bank_account_number || config.bank_ifsc);
-    const bankDetailsBlock: Content | null = hasBank
-      ? {
-          stack: [
-            { text: 'BANK DETAILS FOR REMITTANCE', style: 'sectionLabel', margin: [0, 0, 0, 2] as [number, number, number, number] },
-            {
-              text: [
-                ...(config.bank_name ? [{ text: 'Bank: ', bold: true }, { text: `${config.bank_name}   ` }] : []),
-                ...(config.bank_account_number ? [{ text: 'A/C: ', bold: true }, { text: `${config.bank_account_number}   ` }] : []),
-                ...(config.bank_ifsc ? [{ text: 'IFSC: ', bold: true }, { text: `${config.bank_ifsc}   ` }] : []),
-                ...(config.bank_branch ? [{ text: 'Branch: ', bold: true }, { text: `${config.bank_branch}` }] : []),
-              ],
-              style: 'infoSmall',
-            },
-          ],
-          margin: [0, 4, 0, 0] as [number, number, number, number],
-        }
-      : null;
 
     // ── Assemble ───────────────────────────────────────────────────
     const body: Content[] = [
       headerBanner,
       invoiceInfo,
-      {
-        table: {
-          widths: ['*'],
-          body: [
-            [itemsTable],
-            [narrationBlock ?? { text: '', border: [false, false, false, false] }],
-            [bankDetailsBlock ?? { text: '', border: [false, false, false, false] }],
-            [totalsBlock],
-          ],
-        },
-        layout: {
-          hLineWidth: () => 0,
-          vLineWidth: () => 0,
-          paddingLeft: () => 0,
-          paddingRight: () => 0,
-          paddingTop: () => 0,
-          paddingBottom: () => 0,
-        },
-      } as Content,
+      itemsTable,
+      totalsBlock,
     ];
 
     return {
       pageSize: 'A5',
       pageOrientation: 'landscape',
-      pageMargins: [15, 12, 15, 30],
+      pageMargins: [12, density.compact ? 2 : 8, 12, density.compact ? 10 : 24],
       content: body,
       footer: (currentPage: number, pageCount: number): Content => ({
         margin: [15, 0, 15, 0],
@@ -419,7 +375,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
           {
             columns: [
               {
-                text: config.terms || 'Thank you for your business!',
+                text: 'Thank you for your business!',
                 style: 'footerText',
                 width: '*',
               },
@@ -435,17 +391,17 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
       }),
       styles: {
         companyName: {
-          fontSize: 16,
+          fontSize: density.ultraCompact ? 9 : density.compact ? 12 : 16,
           bold: true,
           color: C.gold,
         },
         companyTagline: {
-          fontSize: 8,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 8,
           italics: true,
           color: '#8a7e50',
         },
         companySub: {
-          fontSize: 8,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 8,
           color: '#8a7e50',
         },
         invoiceTitle: {
@@ -456,7 +412,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
           characterSpacing: 2,
         },
         sectionLabel: {
-          fontSize: 7,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6 : 7,
           bold: true,
           color: C.goldLight,
           characterSpacing: 1.5,
@@ -470,50 +426,46 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
           color: C.text,
         },
         infoValueBold: {
-          fontSize: 9,
+          fontSize: density.ultraCompact ? 5.5 : density.compact ? 7.5 : 9,
           bold: true,
           color: C.text,
         },
         infoSmall: {
-          fontSize: 7.5,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 7.5,
           color: C.textLight,
         },
         tableHeader: {
-          fontSize: 7.5,
+          fontSize: density.compact ? 6 : 7.5,
           bold: true,
           color: C.gold,
           characterSpacing: 0.5,
         },
         itemCell: {
-          fontSize: 8.5,
+          fontSize: density.itemFontSize,
           color: C.text,
         },
         itemCellBold: {
-          fontSize: 8.5,
+          fontSize: density.itemFontSize,
           bold: true,
           color: C.text,
         },
         totalLabel: {
-          fontSize: 8.5,
+          fontSize: density.ultraCompact ? 6 : 8.5,
           color: C.textLight,
         },
         totalValue: {
-          fontSize: 8.5,
+          fontSize: density.ultraCompact ? 6 : 8.5,
           color: C.text,
         },
         grandTotalLabel: {
-          fontSize: 9.5,
+          fontSize: density.ultraCompact ? 7 : 9.5,
           bold: true,
           color: C.gold,
         },
         grandTotalValue: {
-          fontSize: 10,
+          fontSize: density.ultraCompact ? 8 : 10,
           bold: true,
           color: C.gold,
-        },
-        narrationText: {
-          fontSize: 8,
-          color: C.textLight,
         },
         footerText: {
           fontSize: 7,
@@ -521,7 +473,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
           italics: true,
         },
         docBadge: {
-          fontSize: 8.5,
+          fontSize: density.compact ? 7 : 8.5,
           bold: true,
           color: C.gold,
           characterSpacing: 1.5,
@@ -545,6 +497,8 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
 
 export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, logoDataUri: string): TDocumentDefinitions {
     const dateStr = formatDate(sale.dateISO);
+    const density = getPdfDensity(sale.items.length);
+    const isTaxable = sale.voucherType?.trim().toUpperCase() === 'RICE SALES TAXABLE';
 
     // ── Header banner ──────────────────────────────────────────────
     const headerBanner: Content = {
@@ -556,7 +510,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
               [
                 {
                   image: logoDataUri,
-                  fit: [65, 65],
+                  fit: [density.logoSize, density.logoSize],
                   margin: [0, 0, 0, 0],
                   border: [false, false, false, false],
                 },
@@ -566,11 +520,11 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
                       text: config.company_name,
                       style: 'companyName',
                     },
-                    ...(config.tagline ? [{ text: config.tagline, style: 'companyTagline', margin: [0, 1, 0, 0] as [number, number, number, number] }] : []),
+                    ...(config.tagline ? [{ text: config.tagline, style: 'companyTagline', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }] : []),
                     {
                       text: config.address,
                       style: 'companySub',
-                      margin: [0, 2, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number],
                     },
                     {
                       text: [
@@ -579,7 +533,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
                         ...(config.state ? [{ text: `  |  State: ${config.state}` }] : []),
                       ],
                       style: 'companySub',
-                      margin: [0, 2, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number],
                     },
                     ...((config.phone || config.email) ? [{
                       text: [
@@ -588,7 +542,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
                         ...(config.email ? [{ text: `Email: ${config.email}` }] : []),
                       ],
                       style: 'companySub',
-                      margin: [0, 1, 0, 0] as [number, number, number, number],
+                      margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number],
                     }] : []),
                   ],
                   border: [false, false, false, false],
@@ -602,8 +556,8 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
             vLineWidth: () => 0,
             paddingLeft: () => 8,
             paddingRight: () => 8,
-            paddingTop: () => 8,
-            paddingBottom: () => 8,
+            paddingTop: () => density.headerPadding,
+            paddingBottom: () => density.headerPadding,
           },
         },
         {
@@ -618,7 +572,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
               lineColor: C.gold,
             },
           ],
-          margin: [0, 0, 0, 8],
+          margin: [0, 0, 0, density.compact ? 3 : 6],
         },
       ],
     };
@@ -632,15 +586,15 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
             {
               stack: [
                 { text: 'DISPATCH / CONSIGNEE', style: 'sectionLabel' },
-                { text: sale.partyName, style: 'infoValueBold', margin: [0, 3, 0, 0] as [number, number, number, number] },
+                { text: sale.partyName, style: 'infoValueBold', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
                 ...(sale.partyAddress
-                  ? [{ text: sale.partyAddress, style: 'infoSmall', margin: [0, 2, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: sale.partyAddress, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 2, 0, 0] as [number, number, number, number] }]
                   : []),
                 ...(sale.partyState
-                  ? [{ text: `State: ${sale.partyState}`, style: 'infoSmall', margin: [0, 1, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: `State: ${sale.partyState}`, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }]
                   : []),
                 ...(sale.partyGstin
-                  ? [{ text: `GSTIN: ${sale.partyGstin}`, style: 'infoSmall', margin: [0, 1, 0, 0] as [number, number, number, number] }]
+                  ? [{ text: `GSTIN: ${sale.partyGstin}`, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }]
                   : []),
               ],
               border: [false, false, false, false],
@@ -649,10 +603,8 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
             {
               stack: [
                 { text: 'DELIVERY CHALLAN / NOTE', style: 'docBadge', alignment: 'right' },
-                { text: 'DISPATCH DATE', style: 'sectionLabel', alignment: 'right', margin: [0, 3, 0, 0] as [number, number, number, number] },
+                { text: 'DISPATCH DATE', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
                 { text: dateStr, style: 'infoValueBold', alignment: 'right' },
-                { text: 'INVOICE REF #', style: 'sectionLabel', alignment: 'right', margin: [0, 3, 0, 0] as [number, number, number, number] },
-                { text: sale.voucherNumber || '—', style: 'infoValueBold', alignment: 'right' },
               ],
               border: [false, false, false, false],
               margin: [0, 0, 0, 0] as [number, number, number, number],
@@ -665,8 +617,8 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
         vLineWidth: () => 0,
         paddingLeft: () => 10,
         paddingRight: () => 10,
-        paddingTop: () => 8,
-        paddingBottom: () => 8,
+        paddingTop: () => density.headerPadding,
+        paddingBottom: () => density.headerPadding,
       },
       margin: [0, 0, 0, 6] as [number, number, number, number],
     };
@@ -676,6 +628,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
       { text: '#', style: 'tableHeader', alignment: 'center', border: [false, false, false, false] },
       { text: 'DESCRIPTION OF GOODS', style: 'tableHeader', border: [false, false, false, false] },
       { text: 'DISPATCHED QTY', style: 'tableHeader', alignment: 'center', border: [false, false, false, false] },
+      { text: 'PRICE / UNIT', style: 'tableHeader', alignment: 'right', border: [false, false, false, false] },
     ];
 
     let totalQuantity = 0;
@@ -707,12 +660,19 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
           border: [false, false, false, false],
           fillColor: isAlt ? C.rowAlt : null,
         },
+        {
+          text: `₹ ${indianFormat(item.rate)}${isTaxable ? ' + GST' : ''}`,
+          style: 'itemCell',
+          alignment: 'right',
+          border: [false, false, false, false],
+          fillColor: isAlt ? C.rowAlt : null,
+        },
       ];
     });
 
     const itemsTable: Content = {
       table: {
-        widths: [25, '*', 100],
+        widths: [25, '*', 100, 110],
         headerRows: 1,
         body: [tableHeader, ...itemRows],
       },
@@ -720,10 +680,10 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
         hLineWidth: (i) => (i === 1 ? 1 : 0),
         vLineWidth: () => 0,
         hLineColor: () => C.border,
-        paddingLeft: () => 6,
-        paddingRight: () => 6,
-        paddingTop: () => 5,
-        paddingBottom: () => 5,
+        paddingLeft: () => density.compact ? 3 : 6,
+        paddingRight: () => density.compact ? 3 : 6,
+        paddingTop: () => density.tablePadding,
+        paddingBottom: () => density.tablePadding,
         fillColor: (rowIndex) => {
           if (rowIndex === 0) return '#f5f3e8';
           return null;
@@ -749,49 +709,19 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
         hLineColor: () => C.gold,
         paddingLeft: () => 6,
         paddingRight: () => 6,
-        paddingTop: () => 4,
-        paddingBottom: () => 4,
+        paddingTop: () => density.tablePadding,
+        paddingBottom: () => density.tablePadding,
       },
       margin: [0, 0, 0, 8] as [number, number, number, number],
     };
 
-    // ── Signatures & Acknowledgement ──────────────────────────────
+    // ── Dispatcher signature ──────────────────────────────────────
     const signBlock: Content = {
-      table: {
-        widths: ['*', '*', '*'],
-        body: [
-          [
-            {
-              stack: [
-                { text: 'Driver / Transporter Signature', fontSize: 7.5, color: C.textLight, alignment: 'center' },
-                { text: '\n\n\n_________________________', alignment: 'center', color: '#c4bc96' },
-              ],
-              border: [false, false, false, false],
-            },
-            {
-              stack: [
-                { text: 'Receiver Signature & Seal', fontSize: 7.5, color: C.textLight, alignment: 'center' },
-                { text: '\n\n\n_________________________', alignment: 'center', color: '#c4bc96' },
-                { text: 'Received goods in good order', fontSize: 7, color: C.textLight, alignment: 'center', margin: [0, 2, 0, 0] },
-              ],
-              border: [false, false, false, false],
-            },
-            {
-              stack: [
-                { text: `For ${config.company_name}`, fontSize: 7.5, bold: true, color: C.gold, alignment: 'center' },
-                { text: '\n\n\n_________________________', alignment: 'center', color: '#c4bc96' },
-                { text: 'Authorized Dispatcher', fontSize: 7, color: C.textLight, alignment: 'center', margin: [0, 2, 0, 0] },
-              ],
-              border: [false, false, false, false],
-            },
-          ]
-        ]
-      },
-      layout: {
-        hLineWidth: () => 0,
-        vLineWidth: () => 0,
-      },
-      margin: [0, 6, 0, 0] as [number, number, number, number],
+      stack: [
+        { text: '_________________________', alignment: 'right', color: '#c4bc96', fontSize: density.compact ? density.itemFontSize : 8 },
+        { text: 'Dispatcher / Sender Signature', fontSize: density.compact ? 5 : 7, color: C.textLight, alignment: 'right' },
+      ],
+      margin: [0, density.compact ? 2 : 4, 0, 0] as [number, number, number, number],
     };
 
     const body: Content[] = [
@@ -805,7 +735,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
     return {
       pageSize: 'A5',
       pageOrientation: 'landscape',
-      pageMargins: [15, 12, 15, 24],
+      pageMargins: [12, density.compact ? 2 : 8, 12, density.compact ? 10 : 24],
       content: body,
       footer: (currentPage: number, pageCount: number): Content => ({
         margin: [15, 0, 15, 0],
@@ -827,7 +757,7 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
           {
             columns: [
               {
-                text: 'Official Goods Delivery Note & Gate Pass. Must accompany vehicle during transport.',
+                text: 'No rent or freight is payable for the above goods.',
                 style: 'footerText',
                 width: '*',
               },
@@ -843,62 +773,62 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
       }),
       styles: {
         companyName: {
-          fontSize: 16,
+          fontSize: density.ultraCompact ? 9 : density.compact ? 12 : 16,
           bold: true,
           color: C.gold,
         },
         companyTagline: {
-          fontSize: 8,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 8,
           italics: true,
           color: '#8a7e50',
         },
         companySub: {
-          fontSize: 8,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 8,
           color: '#8a7e50',
         },
         docBadge: {
-          fontSize: 8.5,
+          fontSize: density.compact ? 7 : 8.5,
           bold: true,
           color: C.gold,
           characterSpacing: 1.5,
         },
         sectionLabel: {
-          fontSize: 7,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6 : 7,
           bold: true,
           color: C.goldLight,
           characterSpacing: 1.5,
         },
         infoValueBold: {
-          fontSize: 9,
+          fontSize: density.ultraCompact ? 5.5 : density.compact ? 7.5 : 9,
           bold: true,
           color: C.text,
         },
         infoSmall: {
-          fontSize: 7.5,
+          fontSize: density.ultraCompact ? 5 : density.compact ? 6.5 : 7.5,
           color: C.textLight,
         },
         tableHeader: {
-          fontSize: 7.5,
+          fontSize: density.compact ? 6 : 7.5,
           bold: true,
           color: C.gold,
           characterSpacing: 0.5,
         },
         itemCell: {
-          fontSize: 8.5,
+          fontSize: density.itemFontSize,
           color: C.text,
         },
         itemCellBold: {
-          fontSize: 8.5,
+          fontSize: density.itemFontSize,
           bold: true,
           color: C.text,
         },
         grandTotalLabel: {
-          fontSize: 9,
+          fontSize: density.ultraCompact ? 6.5 : 9,
           bold: true,
           color: C.gold,
         },
         grandTotalValue: {
-          fontSize: 10.5,
+          fontSize: density.ultraCompact ? 7 : 10.5,
           bold: true,
           color: C.gold,
         },

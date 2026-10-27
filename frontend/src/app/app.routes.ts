@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
-import { VouchersExplorer } from './components/vouchers-explorer/vouchers-explorer';
-import { SettingsView } from './components/settings-view/settings-view';
 
 export const appRoutes: Routes = [
   { path: '', redirectTo: '/vouchers', pathMatch: 'full' },
-  { path: 'vouchers', component: VouchersExplorer },
-  { path: 'settings', component: SettingsView },
+  { path: 'vouchers', loadComponent: () => import('./components/vouchers-explorer/vouchers-explorer').then(m => m.VouchersExplorer) },
+  { path: 'company', redirectTo: '/vouchers' },
+  { path: 'settings', redirectTo: '/vouchers' },
+  { path: 'workspace', redirectTo: '/vouchers' },
   { path: '**', redirectTo: '/vouchers' },
 ];

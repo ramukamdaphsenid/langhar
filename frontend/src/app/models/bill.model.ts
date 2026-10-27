@@ -1,5 +1,3 @@
-import type { VoucherItem } from './sync.models';
-
 export interface SaleItem {
   name: string;
   quantity: number;
@@ -11,6 +9,7 @@ export interface SaleItem {
 
 export interface SaleRecord {
   voucherNumber: string;
+  voucherType?: string;
   dateISO: string;
   partyName: string;
   partyAddress?: string;
@@ -22,7 +21,5 @@ export interface SaleRecord {
   items: SaleItem[];
   totalAmount: number;
   totalGst?: number;
-  udfs?: Record<string, string>;
   rowId: string;
-  rawVoucher?: VoucherItem;
 }

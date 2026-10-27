@@ -28,7 +28,7 @@ class TallyODBCClient:
         # Connect using Windows DSN
         return pyodbc.connect(f"DSN={self.dsn};", autocommit=True)
 
-    def is_available(self, timeout: float = 0.5) -> bool:
+    def is_available(self) -> bool:
         """Fast check whether Tally ODBC connection is available."""
         try:
             ok, _ = self.check_connection()
@@ -54,19 +54,20 @@ class TallyODBCClient:
     def check_connection(self) -> Tuple[bool, str]:
         """Tests connectivity with Tally Prime via ODBC."""
         try:
-            company_name = self.get_active_company() or "Unknown"
+            company_name = self.get_active_company()
+            if not company_name:
+                return False, f"Connected to ODBC DSN '{self.dsn}', but could not verify Tally's active company."
             return True, f"Connected to Tally ODBC (DSN: {self.dsn}, Active Company: {company_name})"
         except Exception as e:
             return False, f"Tally ODBC Connection Error: {e}"
 
-    def fetch_sales_vouchers(
+    def fetch_vouchers(
         self,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
-        from_alter_id: Optional[int] = None,
         company: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Queries sales vouchers using SQL via ODBC.
+        """Queries all voucher types using SQL via ODBC.
 
         Note:
             Tally's ODBC interface does not expose nested line items or tax
@@ -78,21 +79,20 @@ class TallyODBCClient:
         try:
             cursor = conn.cursor()
             try:
-                where_clauses = ["($VoucherTypeName = 'RICE SALES' OR $VoucherTypeName = 'RICE SALES TAXABLE')"]
+                where_clauses = []
                 if from_date:
                     where_clauses.append(f"$Date >= '{from_date}'")
                 if to_date:
                     where_clauses.append(f"$Date <= '{to_date}'")
-                if from_alter_id and from_alter_id > 0:
-                    where_clauses.append(f"$AlterID > {from_alter_id}")
 
                 where_sql = " AND ".join(where_clauses)
+                where_clause = f"WHERE {where_sql}" if where_sql else ""
                 sql = f"""
-                    SELECT $Guid, $AlterID, $MasterID, $VoucherNumber, $Date, $PartyLedgerName,
+                    SELECT $Guid, $MasterID, $VoucherNumber, $Date, $PartyLedgerName,
                            $PartyName, $StateName, $PartyGSTIN, $Amount, $Narration, $Reference,
                            $BasicShipVesselNo, $VoucherTypeName
                     FROM Voucher
-                    WHERE {where_sql}
+                    {where_clause}
                 """
 
                 logger.info(f"Executing Tally ODBC query: {sql.strip()}")
@@ -108,22 +108,18 @@ class TallyODBCClient:
         vouchers = []
         for r in rows:
             guid = str(r[0] or "")
-            alter_id = int(r[1] or 0)
-            master_id = int(r[2] or 0)
-            voucher_number = str(r[3] or "")
-            date_raw = str(r[4] or "")
-            party_ledger = str(r[5] or "")
-            party_name = str(r[6] or "") or party_ledger
-            party_state = str(r[7] or "")
-            gstin = str(r[8] or "")
-            amount = abs(float(r[9] or 0.0))
-            narration = str(r[10] or "")
-            ref = str(r[11] or "")
-            vehicle_no = str(r[12] or "").strip() if len(r) > 12 else ""
-            voucher_type = str(r[13] or "RICE SALES").strip() if len(r) > 13 and r[13] else "RICE SALES"
-
-            if voucher_type.upper() not in {"RICE SALES", "RICE SALES TAXABLE"}:
-                continue
+            master_id = int(r[1] or 0)
+            voucher_number = str(r[2] or "")
+            date_raw = str(r[3] or "")
+            party_ledger = str(r[4] or "")
+            party_name = str(r[5] or "") or party_ledger
+            party_state = str(r[6] or "")
+            gstin = str(r[7] or "")
+            amount = abs(float(r[8] or 0.0))
+            narration = str(r[9] or "")
+            ref = str(r[10] or "")
+            vehicle_no = str(r[11] or "").strip() if len(r) > 11 else ""
+            voucher_type = str(r[12] or "Unknown").strip() if len(r) > 12 and r[12] else "Unknown"
 
             # Fallback regex on narration if vehicle_no empty
             if not vehicle_no and narration:
@@ -139,15 +135,18 @@ class TallyODBCClient:
                         vehicle_no = plate_match.group(1).strip()
 
             doc_id = f"tally_{guid.replace('-', '_')}" if guid else f"vch_{voucher_number}_{date_raw}"
+            if not guid and master_id > 0:
+                doc_id = f"tally_master_{master_id}"
+            elif not guid:
+                doc_id = f"vch_{voucher_type}_{voucher_number}_{date_raw}"
 
             vouchers.append({
                 "doc_id": doc_id,
                 "guid": guid,
-                "alter_id": alter_id,
                 "master_id": master_id,
                 "voucher_number": voucher_number,
                 "voucher_type": voucher_type,
-                "company_name": company or self.get_active_company() or "",
+                "company_name": company or "",
                 "date": date_raw,
                 "vehicle_number": vehicle_no,
                 "party_name": party_name,
@@ -171,3 +170,12 @@ class TallyODBCClient:
             })
 
         return vouchers
+
+    def fetch_sales_vouchers(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        company: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Backward-compatible alias; the query now includes all voucher types."""
+        return self.fetch_vouchers(from_date, to_date, company)

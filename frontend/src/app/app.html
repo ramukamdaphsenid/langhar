@@ -1,169 +1,45 @@
 <div class="app-layout">
-  <header class="app-header">
-    <div class="header-container">
-      <div class="header-brand-group">
-        <a class="brand-section" [routerLink]="['/vouchers']" aria-label="Langhar home">
-          <img src="assets/langhar-logo.jpg" alt="" class="brand-logo-img">
-          <div class="brand-text-group">
-            <h1 class="brand-title">LANGHAR</h1>
-            <span class="brand-tag">ERP</span>
+  <aside class="app-sidebar" aria-label="Application sidebar">
+    <a class="brand-section" [routerLink]="['/vouchers']" aria-label="Langhar home">
+      <img src="assets/langhar-logo.jpg" alt="" class="brand-logo-img">
+      <span class="brand-text-group"><strong class="brand-title">LANGHAR</strong></span>
+    </a>
+
+    <nav class="sidebar-nav" aria-label="Main navigation">
+      <span class="sidebar-caption">WORKSPACE</span>
+      <a class="nav-module-btn" [routerLink]="['/vouchers']" routerLinkActive="active" ariaCurrentWhen="page">
+        <span class="material-symbols-outlined nav-icon" aria-hidden="true">receipt_long</span><span>Vouchers</span>
+        <span class="module-badge">{{ tallyService.vouchers().length }}</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-health" [class.health-online]="tallyService.isBackendOnline()" [class.health-offline]="!tallyService.isBackendOnline()" aria-live="polite">
+        <span class="header-health-dot" aria-hidden="true"></span>
+        <span>{{ tallyService.isBackendOnline() ? 'Live Tally connection' : 'Waiting for Tally' }}</span>
           </div>
-        </a>
-
-        <div class="header-brand-divider"></div>
-
-        <nav class="header-nav-switcher" aria-label="Main navigation">
-          <a
-            id="nav-vouchers"
-            class="nav-module-btn"
-            [routerLink]="['/vouchers']"
-            routerLinkActive="active"
-            ariaCurrentWhen="page"
-            title="Browse, filter, and export synchronized sales vouchers">
-            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>Vouchers</span>
-            <span class="module-badge font-mono">{{ syncService.vouchers().length }}</span>
-          </a>
-
-          <a
-            id="nav-settings"
-            class="nav-module-btn"
-            [routerLink]="['/settings']"
-            [queryParams]="{ tab: 'invoice' }"
-            routerLinkActive="active"
-            ariaCurrentWhen="page"
-            title="Configure company profile, invoice printing, Tally synchronization, and system settings">
-            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-            <span>Settings</span>
-          </a>
-        </nav>
-      </div>
-
-      <div class="header-right-group">
-        <a
-          class="header-health-link"
-          [class.health-online]="headerStatus().tone === 'online'"
-          [class.health-syncing]="headerStatus().tone === 'syncing'"
-          [class.health-warning]="headerStatus().tone === 'warning'"
-          [class.health-offline]="headerStatus().tone === 'offline'"
-          [routerLink]="['/settings']"
-          [queryParams]="{ tab: 'sync' }"
-          [attr.aria-label]="headerStatus().label + '. Open system status details.'"
-          title="Open Tally and Firebase status details">
-          <span class="header-health-dot" aria-hidden="true"></span>
-          <span class="header-health-label">{{ headerStatus().label }}</span>
-          <svg class="header-health-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </a>
-
-        <div class="header-actions-divider" aria-hidden="true"></div>
-
-        <div class="header-actions">
-          <button
-            id="btn-manual-refresh"
-            type="button"
-            class="header-util-btn icon-only"
-            (click)="syncService.refreshAll()"
-            [attr.aria-label]="syncService.isCheckingHealth() ? 'Refreshing system status' : 'Refresh system status'"
-            title="Refresh system status">
-            <svg class="btn-icon" [class.animate-spin]="syncService.isCheckingHealth()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-              <path d="M16 21h5v-5"/>
-            </svg>
-          </button>
-
-          <button
-            id="btn-theme-toggle"
-            type="button"
-            class="header-util-btn icon-only"
-            (click)="toggleTheme()"
-            [attr.aria-label]="isDarkMode() ? 'Switch to light theme' : 'Switch to dark theme'"
-            [title]="isDarkMode() ? 'Switch to Light Theme' : 'Switch to Dark Theme'">
-            @if (isDarkMode()) {
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="5"/>
-                <line x1="12" y1="1" x2="12" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="23"/>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <line x1="1" y1="12" x2="3" y2="12"/>
-                <line x1="21" y1="12" x2="23" y2="12"/>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-              </svg>
-            } @else {
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            }
-          </button>
-        </div>
-      </div>
     </div>
-  </header>
+  </aside>
 
-  <!-- Main Content Viewport -->
-  <main class="main-content">
-    <!-- Global Alert / Notification Banners -->
-    @if (syncService.errorMessage(); as error) {
-      <div class="alert-banner alert-error" role="alert">
-        <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <div class="alert-content">
-          <span class="alert-strong">Alert:</span> {{ error }}
+  <div class="app-frame">
+    <main class="main-content">
+      @if (tallyService.isBackendOnline() && tallyService.errorMessage(); as error) {
+        <div class="alert-banner alert-error" role="alert">
+          <div class="alert-content"><span class="alert-strong">Tally:</span> {{ error }}</div>
+          <button class="alert-close" type="button" (click)="tallyService.clearError()" aria-label="Dismiss"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
         </div>
-        <button class="alert-close" (click)="syncService.clearError()" aria-label="Dismiss">&times;</button>
-      </div>
-    }
-
-    @if (syncService.activeActionMessage(); as msg) {
-      <div class="alert-banner alert-info" role="status">
-        <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-          <path d="m9 12 2 2 4-4"/>
-        </svg>
-        <div class="alert-content">{{ msg }}</div>
-        <button class="alert-close" (click)="syncService.clearActionMessage()" aria-label="Dismiss">&times;</button>
-      </div>
-    }
-
-    @if (!syncService.isBackendOnline()) {
-      <div class="alert-banner alert-warning" role="alert">
-        <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <div class="alert-content">
-          <span class="alert-strong">FastAPI Server Offline:</span> Connecting to 
-          <code class="font-mono">{{ syncService.apiBaseUrl() }}</code> failed. Check that your Python API server is running on port 8000.
+      }
+      @if (tallyService.isBackendOnline() && tallyService.activeActionMessage(); as message) {
+        <div class="alert-banner alert-info" role="status">
+          <div class="alert-content">{{ message }}</div>
+          <button class="alert-close" type="button" (click)="tallyService.clearActionMessage()" aria-label="Dismiss"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
         </div>
-        <div class="alert-actions">
-          <button class="btn btn-secondary btn-sm" (click)="syncService.refreshAll()">Retry</button>
-          <button class="btn btn-secondary btn-sm" [routerLink]="['/settings']" [queryParams]="{ tab: 'sync' }">Check Status</button>
-        </div>
-      </div>
-    }
-    <!-- ========================================================================= -->
-    <!-- ROUTER OUTLET: VOUCHER EXPLORER & SETTINGS VIEWS                          -->
-    <!-- ========================================================================= -->
-    <router-outlet></router-outlet>
+      }
+      <router-outlet />
+    </main>
+  </div>
 
-  </main>
-
+  <nav class="mobile-nav" aria-label="Main navigation">
+    <a [routerLink]="['/vouchers']" routerLinkActive="active" ariaCurrentWhen="page"><span class="material-symbols-outlined" aria-hidden="true">receipt_long</span><span>Vouchers</span></a>
+  </nav>
 </div>

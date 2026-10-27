@@ -4,13 +4,17 @@ venv/
 *.pyc
 __pycache__/
 
-# Firebase credentials
-serviceAccountKey.json
-firebase_credentials.json
+# Local secrets
 *.json.secret
+backend/.env.example
 
-# Local sync state and logs
-.sync_state.json
+# Local agent and skill configuration
+/.agents/
+/.claude/
+/agent/
+/skills-lock.json
+
+# Local logs
 sync.log
 logs/
 

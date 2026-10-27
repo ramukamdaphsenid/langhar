@@ -18,10 +18,12 @@ COPY frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --prefer-offline --no-audit --no-fund
 
-# Production build with a larger Node heap to reduce GC pauses during the
-# Angular/esbuild compile. Analytics disabled via NG_CLI_ANALYTICS.
+# Production build with a bounded Node heap sized for the 2 GB WSL2 VM this
+# image is built in (see %USERPROFILE%\.wslconfig). Going higher risks an
+# out-of-memory kill from the Linux OOM reaper during the Angular/esbuild
+# compile. Analytics disabled via NG_CLI_ANALYTICS.
 ENV NODE_ENV=production \
-    NODE_OPTIONS=--max-old-space-size=2048 \
+    NODE_OPTIONS=--max-old-space-size=1024 \
     NG_CLI_ANALYTICS=0
 
 # Copy frontend source and build optimized distribution with Angular persistent disk cache

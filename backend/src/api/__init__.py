@@ -1,1 +1,1 @@
-"""API layer package for the Langhar Tally to Firebase Sync backend."""
+"""API layer package for the Langhar Tally voucher service."""

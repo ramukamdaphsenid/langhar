@@ -1,17 +1,16 @@
 """HTTP Client for communicating with Tally Prime's XML Server."""
 import html
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 import requests
 
 from config.settings import settings
 from src.tally.parser import parse_tally_vouchers_xml
 from src.tally.queries import (
-    build_active_company_query,
     build_company_info_query,
-    build_sales_vouchers_query
+    build_vouchers_query
 )
-from src.utils.company_helper import get_target_company_name, verify_company_match
+from src.utils.company_helper import verify_company_match
 from src.utils.logger import logger
 
 
@@ -22,7 +21,7 @@ class TallyClient:
         self.host = host or settings.tally.host
         self.port = port or settings.tally.port
         self.timeout = timeout or settings.tally.timeout
-        self.company = company or settings.tally.company
+        self.company = company
         self.session = requests.Session()
 
     @property
@@ -99,17 +98,20 @@ class TallyClient:
 
 
     def get_active_company(self) -> Optional[str]:
-        """Queries Tally Prime for the currently active/selected company name safely."""
+        """Return the company only when the XML interface reports one unambiguous company.
+
+        The Company collection can contain every company loaded in Tally, not only the
+        active one. Never infer the active company by looking for the requested target.
+        """
         companies = self.get_loaded_companies()
-        if not companies:
+        unique = {name.casefold(): name for name in companies if name.strip()}
+        if len(unique) != 1:
+            if len(unique) > 1:
+                logger.warning(
+                    "Tally XML reports multiple loaded companies; active company cannot be verified safely."
+                )
             return None
-        target = self.company or get_target_company_name()
-        if target:
-            for comp in companies:
-                is_match, _ = verify_company_match(comp, target)
-                if is_match:
-                    return comp
-        return companies[0]
+        return next(iter(unique.values()))
 
     def check_connection(self) -> Tuple[bool, str]:
         """Tests connectivity with Tally Prime and checks the active company."""
@@ -121,57 +123,73 @@ class TallyClient:
                 f"(F1: Help -> Settings -> Connectivity -> Client/Server configuration -> Both/Server -> Port: {self.port})."
             )
 
-        target_company = self.company or get_target_company_name()
+        target_company = self.company
         try:
             active_company = self.get_active_company()
-            if active_company:
-                if target_company:
-                    is_match, mismatch_reason = verify_company_match(active_company, target_company)
-                    if not is_match:
-                        return (
-                            False,
-                            f"Company Mismatch: Tally Prime is open on '{active_company}', "
-                            f"but target company is '{target_company}'. Please switch company in Tally."
-                        )
-                    return True, f"Connected to Tally Prime at {self.url} (Active Company: '{active_company}' - Verified)"
-                return True, f"Connected to Tally Prime at {self.url} (Active Company: '{active_company}')"
-
-            company_hint = target_company or "Active Company in Tally"
-            return True, f"Connected to Tally Prime at {self.url} (Target: {company_hint})"
+            if not active_company:
+                return (
+                    False,
+                    "Tally is reachable, but its active company cannot be verified. "
+                    "Keep only the intended company open in Tally or enable ODBC verification."
+                )
+            if target_company:
+                is_match, _ = verify_company_match(active_company, target_company)
+                if not is_match:
+                    return (
+                        False,
+                        f"Company Mismatch: Tally reports '{active_company}', "
+                        f"but the requested target is '{target_company}'. Open the target company in Tally."
+                    )
+                return True, f"Connected to Tally Prime at {self.url} (Company '{active_company}' verified)"
+            return True, f"Connected to Tally Prime at {self.url} (Company '{active_company}' verified)"
         except Exception as e:
             return False, str(e)
+
+    def fetch_vouchers(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        company: Optional[str] = None,
+        voucher_types: Optional[Sequence[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Query Tally Prime for matching voucher types and criteria.
+
+        Args:
+            from_date: Start date string formatted as YYYYMMDD (e.g. 20240401)
+            to_date: End date string formatted as YYYYMMDD (e.g. 20240430)
+            company: Specific target company name to query in Tally.
+            voucher_types: Optional voucher type names to include.
+        """
+        target_company = company or self.company
+        logger.info(
+            f"Querying Tally Prime ({self.url}) for vouchers "
+            f"[Company: {target_company or 'ACTIVE'}, Date: {from_date or 'ALL'} to {to_date or 'ALL'}]"
+        )
+        # Notice: We intentionally do NOT force <SVCURRENTCOMPANY> in voucher query static variables.
+        # Tally Prime natively exports from its active company. Forcing an internal context switch
+        # via static variables can trigger a Memory Access Violation (c0000005) in Tally's C++ core.
+        xml_request = build_vouchers_query(
+            from_date=from_date,
+            to_date=to_date,
+            company=None,
+            voucher_types=voucher_types,
+        )
+
+        xml_response = self.send_xml_request(xml_request)
+        header = re.search(r"<HEADER>(.*?)</HEADER>", xml_response, flags=re.IGNORECASE | re.DOTALL)
+        if header and re.search(r"<STATUS>\s*0\s*</STATUS>", header.group(1), flags=re.IGNORECASE):
+            detail = re.search(r"<(?:LINEERROR|DESC)>(.*?)</(?:LINEERROR|DESC)>", xml_response, flags=re.IGNORECASE | re.DOTALL)
+            message = html.unescape(detail.group(1).strip()) if detail else "Tally rejected the voucher export request."
+            raise RuntimeError(message)
+        vouchers = parse_tally_vouchers_xml(xml_response, company_name=target_company)
+        logger.info(f"Retrieved and parsed {len(vouchers)} voucher(s) from Tally Prime (Company: {target_company or 'Active'}).")
+        return vouchers
 
     def fetch_sales_vouchers(
         self,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
-        from_alter_id: Optional[int] = None,
         company: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Queries Tally Prime for Sales Vouchers matching the criteria.
-
-        Args:
-            from_date: Start date string formatted as YYYYMMDD (e.g. 20240401)
-            to_date: End date string formatted as YYYYMMDD (e.g. 20240430)
-            from_alter_id: Incremental sync Alter ID threshold ($AlterID > from_alter_id)
-            company: Specific target company name to query in Tally.
-        """
-        target_company = company or self.company or get_target_company_name()
-        logger.info(
-            f"Querying Tally Prime ({self.url}) for Sales Vouchers "
-            f"[Company: {target_company or 'ACTIVE'}, Date: {from_date or 'ALL'} to {to_date or 'ALL'}, AlterID > {from_alter_id or 0}]"
-        )
-        # Notice: We intentionally do NOT force <SVCURRENTCOMPANY> in voucher query static variables.
-        # Tally Prime natively exports from its active company. Forcing an internal context switch
-        # via static variables can trigger a Memory Access Violation (c0000005) in Tally's C++ core.
-        xml_request = build_sales_vouchers_query(
-            from_date=from_date,
-            to_date=to_date,
-            from_alter_id=from_alter_id,
-            company=None
-        )
-
-        xml_response = self.send_xml_request(xml_request)
-        vouchers = parse_tally_vouchers_xml(xml_response, company_name=target_company)
-        logger.info(f"Retrieved and parsed {len(vouchers)} sales voucher(s) from Tally Prime (Company: {target_company or 'Active'}).")
-        return vouchers
+        """Backward-compatible alias; the export now includes every voucher type."""
+        return self.fetch_vouchers(from_date, to_date, company)

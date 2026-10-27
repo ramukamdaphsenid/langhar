@@ -13,6 +13,8 @@
 README.md
 docs/
 *.bat
+docker-share/
+*.tar
 
 # Node & Angular artifacts
 node_modules
@@ -32,18 +34,14 @@ __pycache__
 *.py[cod]
 *$py.class
 .pytest_cache
+backend/tests/
 
-# Sync state tracking files (should be preserved on host or volume)
-.sync_state.json
-backend/.sync_state.json
+backend/data/
 
 # Credentials and secrets (must never be baked into container layers)
 *.env
 .env
 backend/.env
-serviceAccountKey.json
-backend/serviceAccountKey.json
-firebase_credentials.json
 
 # Local temp logs
 *.log

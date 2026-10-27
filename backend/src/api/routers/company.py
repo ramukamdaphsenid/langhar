@@ -1,69 +1,55 @@
-"""Company profile settings endpoints: fetch, update and persist business profile."""
-from fastapi import APIRouter
-from src.api import runtime
+"""Active Tally company and document-profile endpoints."""
+import json
+from json import JSONDecodeError
+
+from fastapi import APIRouter, HTTPException
 from src.api.schemas import CompanyProfileModel
-from src.firebase.client import FirebaseClient
+from config.settings import settings
+from src.utils.active_company import get_active_company_context, require_active_company
+from src.utils.company_helper import normalize_company_name
 from src.utils.logger import logger
 
 router = APIRouter()
 
 
+def _require_active_company(company_id: str = None):
+    try:
+        return require_active_company(company_id)
+    except RuntimeError as error:
+        status_code = 409 if company_id and "changed" in str(error).lower() else 503
+        raise HTTPException(status_code=status_code, detail=str(error))
+
+
+@router.get("/api/company/active")
+def get_active_company():
+    """Return the company currently active in Tally, without a local registry."""
+    try:
+        return get_active_company_context()
+    except Exception as error:
+        logger.warning(f"Could not determine the active Tally company: {error}")
+        return {"active_company": None, "tally_online": False}
+
+
 @router.get("/api/settings/company", response_model=CompanyProfileModel)
-def get_company_profile():
-    """Fetch persistent company profile from Firebase Firestore (with local config fallback)."""
+def get_company_profile(company_id: str = None):
+    """Read the configured document profile for the active Tally company."""
+    company = _require_active_company(company_id)
+    profile_path = settings.base_dir / "config" / "company_profile.json"
+    profile = {}
+
     try:
-        firebase = FirebaseClient()
-        profile = firebase.get_company_profile()
-        if profile and profile.get("company_name"):
-            # Merge with local defaults in case some optional fields are absent
-            local_defaults = runtime._load_company_profile()
-            merged = {**local_defaults, **profile}
-            runtime._save_company_profile(merged)
-            return merged
-        elif not profile:
-            # Firestore is empty; auto-seed it from local configuration so Firestore is populated
-            local_defaults = runtime._load_company_profile()
-            if local_defaults.get("company_name"):
-                try:
-                    firebase.save_company_profile(local_defaults)
-                    logger.info("[SETTINGS] Auto-seeded company profile to Firestore 'settings/company_profile'")
-                except Exception as seed_err:
-                    logger.debug(f"[SETTINGS] Could not auto-seed Firestore company profile: {seed_err}")
-            return local_defaults
-    except Exception as e:
-        logger.warning(f"Error reading company profile from Firebase: {e}")
+        configured_profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        configured_profile = None
+    except (OSError, JSONDecodeError) as error:
+        logger.warning(f"Could not read company profile configuration: {error}")
+        configured_profile = None
 
-    return runtime._load_company_profile()
+    if configured_profile and normalize_company_name(configured_profile.get("company_name")) == normalize_company_name(company["company_name"]):
+        profile = configured_profile
 
-
-@router.post("/api/settings/company")
-def update_company_profile(profile: CompanyProfileModel):
-    """Update and persist business profile and invoice header details to local config and Firestore."""
-    data = profile.model_dump()
-    runtime._save_company_profile(data)
-
-    firestore_ok = False
-    firestore_err = None
-    try:
-        firebase = FirebaseClient()
-        firebase.save_company_profile(data)
-        firestore_ok = True
-        logger.info(f"[SETTINGS] Company profile updated and saved to Firestore: {profile.company_name}")
-    except Exception as e:
-        firestore_err = str(e)
-        logger.warning(f"[SETTINGS] Saved locally. Firestore write warning: {e}")
-
-    if firestore_ok:
-        return {
-            "status": "SUCCESS",
-            "message": "Company profile successfully saved and synced to Firebase Firestore.",
-            "source": "firestore",
-            "profile": data,
-        }
-    else:
-        return {
-            "status": "PARTIAL_SUCCESS",
-            "message": f"Saved locally in server cache, but failed to write to Firebase Firestore: {firestore_err}",
-            "source": "local",
-            "profile": data,
-        }
+    return {
+        **CompanyProfileModel().model_dump(),
+        **profile,
+        "company_name": profile.get("company_name", company["company_name"]),
+    }

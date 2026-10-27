@@ -1,90 +1,63 @@
-"""Voucher retrieval endpoints: sample data preview from live Tally, Firestore or mock."""
-from pathlib import Path
+"""Voucher retrieval endpoint for live Tally data."""
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from config.settings import settings
-from src.firebase.client import FirebaseClient
-from src.sync.state import SyncStateManager
 from src.tally.client import TallyClient
 from src.tally.odbc_client import TallyODBCClient
-from src.tally.parser import is_allowed_voucher_type, parse_tally_vouchers_xml
-from src.utils.company_helper import get_target_company_name
+from src.tally.queries import VOUCHER_SCREEN_TYPES
+from src.utils.active_company import require_active_company
+from src.utils.company_helper import verify_company_match
 from src.utils.logger import logger
 
 router = APIRouter()
 
 
-@router.get("/api/vouchers/sample")
-def get_sample_vouchers(limit: Optional[int] = None, search: Optional[str] = None, source_pref: Optional[str] = None):
-    """Retrieve vouchers for preview (from live Tally, Firestore, or mock dataset).
-    
-    When Tally is disconnected or unreachable, automatically loads data from Firebase Firestore.
-    """
+@router.get("/api/vouchers")
+def get_vouchers(
+    limit: Optional[int] = None,
+    search: Optional[str] = None,
+    company_id: Optional[str] = None,
+):
+    """Retrieve vouchers from live Tally for its currently active company."""
+    try:
+        company = require_active_company(company_id)
+    except RuntimeError as error:
+        status_code = 409 if company_id and "changed" in str(error).lower() else 503
+        raise HTTPException(status_code=status_code, detail=str(error))
+
     vouchers: List[Dict[str, Any]] = []
-    source = "live"
-    target_comp = get_target_company_name()
+    company_id = company["company_id"]
+    target_comp = company["company_name"]
 
-    # If limit is 0 or negative, treat as None (no limit)
-    query_limit = limit if (limit is not None and limit > 0) else None
+    tally = TallyClient(company=target_comp)
+    if not tally.is_available():
+        raise HTTPException(status_code=503, detail="Tally Prime is not reachable. Open Tally and retry.")
 
-    # 1. If firestore source requested explicitly
-    if source_pref == "firestore":
-        try:
-            fb = FirebaseClient()
-            vouchers = fb.get_vouchers(limit=query_limit, company_name=target_comp)
-            source = "firestore"
-            logger.info(f"[VOUCHERS] Loaded {len(vouchers)} vouchers directly from Firestore for '{target_comp or 'All'}'.")
-        except Exception as fb_err:
-            logger.warning(f"Failed to fetch vouchers from Firestore: {fb_err}")
+    verifier = TallyODBCClient() if settings.tally.use_odbc else tally
+    active_company = verifier.get_active_company()
+    if not active_company:
+        raise HTTPException(status_code=503, detail="Tally is reachable, but its active company could not be verified.")
+    if not verify_company_match(active_company, target_comp)[0]:
+        raise HTTPException(status_code=409, detail="Tally's active company changed. Refresh and try again.")
 
-    # 2. Try querying Tally if not resolved and not explicitly firestore
-    if not vouchers and source != "firestore":
-        tally = TallyODBCClient() if settings.tally.use_odbc else TallyClient(company=target_comp)
-        is_tally_online = False
-        try:
-            is_tally_online = tally.is_available()
-        except Exception:
-            is_tally_online = False
+    try:
+        vouchers = tally.fetch_vouchers(
+            company=target_comp,
+            voucher_types=VOUCHER_SCREEN_TYPES,
+        )
+        active_after_export = verifier.get_active_company()
+        if not active_after_export or not verify_company_match(active_after_export, target_comp)[0]:
+            raise HTTPException(status_code=409, detail="Tally's active company changed during voucher loading.")
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(f"[VOUCHERS] Direct Tally query failed for '{target_comp}': {error}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not load vouchers directly from Tally Prime: {error}") from error
 
-        if is_tally_online and source_pref != "mock":
-            try:
-                vouchers = tally.fetch_sales_vouchers(company=target_comp)
-                source = "live"
-                logger.info(f"[VOUCHERS] Loaded {len(vouchers)} live vouchers from Tally Prime (Company: {target_comp or 'Active'}).")
-            except Exception as e:
-                logger.warning(f"[VOUCHERS] Query to live Tally failed ({e}). Falling back to Firebase Firestore.")
-                is_tally_online = False
-
-        # If Tally is disconnected or query failed, load from Firebase Firestore!
-        if not vouchers and source_pref != "mock":
-            try:
-                fb = FirebaseClient()
-                vouchers = fb.get_vouchers(limit=query_limit, company_name=target_comp)
-                source = "firestore"
-                logger.info(
-                    f"[VOUCHERS] Tally Prime is disconnected/unreachable. "
-                    f"Successfully loaded {len(vouchers)} vouchers from Firebase Firestore for '{target_comp or 'All'}'."
-                )
-            except Exception as fb_err:
-                logger.warning(f"[VOUCHERS] Could not fetch vouchers from Firestore ({fb_err}). Falling back to mock dataset.")
-
-        # If neither Tally nor Firestore could provide vouchers, fallback to mock file
-        if not vouchers:
-            source = "mock"
-            logger.info("Reading vouchers from mock test dataset...")
-            mock_file = Path("tests/mock_sales_vouchers.xml")
-            if mock_file.exists():
-                with open(mock_file, "r", encoding="utf-8") as f:
-                    vouchers = parse_tally_vouchers_xml(f.read())
-            else:
-                vouchers = []
-
-    # Filter strictly for RICE SALES and RICE SALES TAXABLE
-    vouchers = [
-        v for v in vouchers
-        if is_allowed_voucher_type(v.get("voucher_type"))
-    ]
+    for voucher in vouchers:
+        voucher["company_id"] = company_id
+    logger.info(f"[VOUCHERS] Loaded {len(vouchers)} live vouchers from Tally Prime (Company: {target_comp}).")
 
     # Optional search filtering
     if search:
@@ -100,18 +73,10 @@ def get_sample_vouchers(limit: Optional[int] = None, search: Optional[str] = Non
         ]
 
     total_count = len(vouchers)
-    if source == "firestore":
-        try:
-            synced_total = SyncStateManager().load_state().get("total_vouchers_synced", 0)
-            if synced_total > total_count:
-                total_count = synced_total
-        except Exception:
-            pass
-
-    paginated = vouchers[:query_limit] if query_limit else vouchers
+    paginated = vouchers[:limit] if limit and limit > 0 else vouchers
 
     return {
-        "source": source,
+        "source": "live",
         "total": total_count,
         "returned": len(paginated),
         "vouchers": paginated

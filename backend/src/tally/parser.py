@@ -1,7 +1,7 @@
 """Parser for Tally XML voucher responses.
 
 Transforms raw Tally XML responses into clean, normalized Python dictionaries
-ready for validation and sync to Firebase Firestore.
+ready for validation and storage in the local database.
 """
 from __future__ import annotations
 
@@ -286,16 +286,6 @@ def extract_vehicle_number(v_data: Dict[str, Any], narration: str = "", referenc
     return ""
 
 
-ALLOWED_VOUCHER_TYPES = {"RICE SALES", "RICE SALES TAXABLE"}
-
-
-def is_allowed_voucher_type(v_type: Optional[str]) -> bool:
-    """Checks whether the voucher type is one of the permitted rice sales voucher types."""
-    if not v_type:
-        return False
-    return v_type.strip().upper() in ALLOWED_VOUCHER_TYPES
-
-
 def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Parses a single Tally voucher dictionary into a standardized schema."""
     if not isinstance(v_data, dict):
@@ -306,7 +296,7 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
         or safe_str(v_data.get("@VCHTYPE"))
         or safe_str(v_data.get("VCHTYPE"))
     )
-    if not is_allowed_voucher_type(raw_v_type):
+    if not raw_v_type:
         return None
 
     voucher_type = raw_v_type.strip()
@@ -316,7 +306,6 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
     date_iso = parse_tally_date(v_data.get("DATE"))
     effective_date_iso = parse_tally_date(v_data.get("EFFECTIVEDATE")) or date_iso
 
-    alter_id = safe_int(v_data.get("ALTERID"))
     master_id = safe_int(v_data.get("MASTERID"))
 
     # Party details
@@ -361,11 +350,13 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
             # Fallback to max ledger amount
             total_amount = max(l["amount"] for l in ledgers)
 
-    # Document ID for Firestore: Clean GUID or sanitized fallback
+    # Stable document ID: clean GUID or sanitized fallback
     if guid:
         doc_id = f"tally_{guid.replace('-', '_')}"
+    elif master_id > 0:
+        doc_id = f"tally_master_{master_id}"
     else:
-        raw_id = f"vch_{voucher_number}_{date_iso or 'nodate'}"
+        raw_id = f"vch_{voucher_type}_{voucher_number}_{date_iso or 'nodate'}"
         # Sanitize against special characters (#, ?, /, \, *, etc.) invalid for document paths
         clean_suffix = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_id)
         doc_id = clean_suffix
@@ -381,7 +372,6 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
     return {
         "doc_id": doc_id,
         "guid": guid,
-        "alter_id": alter_id,
         "master_id": master_id,
         "voucher_number": voucher_number,
         "voucher_type": voucher_type,

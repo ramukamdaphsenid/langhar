@@ -1,14 +1,16 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, signal, computed, OnDestroy, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SyncApiService } from '../../services/sync-api.service';
-import { SyncUiUtilsService, DatePreset } from '../../services/sync-ui-utils.service';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { TallyApiService } from '../../services/tally-api.service';
+import { VoucherUiUtilsService, DatePreset } from '../../services/voucher-ui-utils.service';
 import { BillService } from '../../services/bill.service';
-import { VoucherItem } from '../../models/sync.models';
+import { VoucherItem } from '../../models/tally-voucher.model';
 import { mapVoucherToSaleRecord, ALLOWED_VOUCHER_TYPES } from '../../services/bill.mapper';
 
 export type VoucherSortField = 'date' | 'voucher_number' | 'party' | 'amount' | 'items';
 export type SortOrder = 'asc' | 'desc';
+type PdfAction = 'view-invoice' | 'view-delivery-note' | 'download-invoice' | 'download-delivery-note';
 
 function normalizeDateStr(d: string | undefined | null): string {
   if (!d) return '';
@@ -23,20 +25,26 @@ function normalizeDateStr(d: string | undefined | null): string {
   selector: 'app-vouchers-explorer',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  styleUrl: './vouchers-explorer.css',
   templateUrl: './vouchers-explorer.html',
-  styleUrl: './vouchers-explorer.css'
 })
-export class VouchersExplorer {
-  readonly syncService = inject(SyncApiService);
+export class VouchersExplorer implements OnDestroy {
+  readonly tallyService = inject(TallyApiService);
   readonly billService = inject(BillService);
-  readonly syncUiUtils = inject(SyncUiUtilsService);
+  readonly voucherUiUtils = inject(VoucherUiUtilsService);
+  private readonly sanitizer = inject(DomSanitizer);
+  readonly pdfFrame = viewChild<ElementRef<HTMLIFrameElement>>('pdfFrame');
 
-  // Connection health (delegated to SyncUiUtilsService)
-  readonly isTallyConnected = this.syncUiUtils.isTallyConnected;
+  readonly pdfPreviewUrl = signal<SafeResourceUrl | null>(null);
+  readonly pdfPreviewTitle = signal('');
+  private pdfObjectUrl: string | null = null;
+
+  // Connection health for the active Tally company.
+  readonly isTallyConnected = this.voucherUiUtils.isTallyConnected;
 
   // Modal / drawer state
-  isGeneratingPdf = signal<boolean>(false);
-  generatingPdfMessage = signal<string>('Preparing document...');
+  readonly generatingPdf = signal<{ action: PdfAction; voucher: VoucherItem } | null>(null);
+  readonly isGeneratingPdf = computed(() => this.generatingPdf() !== null);
   selectedVoucher = signal<VoucherItem | null>(null);
 
   // Filters & sorters
@@ -53,14 +61,14 @@ export class VouchersExplorer {
 
   // Summary computeds
   readonly distinctPartiesCount = computed(() => {
-    const list = this.syncService.vouchers();
+    const list = this.tallyService.vouchers();
     const set = new Set<string>();
     list.forEach(v => set.add(this.getPartyDisplayName(v).toLowerCase()));
     return set.size;
   });
 
   readonly vehiclesCount = computed(() => {
-    return this.syncService.vouchers().filter(v => this.hasVehicleNumber(v)).length;
+    return this.tallyService.vouchers().filter(v => this.hasVehicleNumber(v)).length;
   });
 
   readonly activeFilterCount = computed(() => {
@@ -71,7 +79,7 @@ export class VouchersExplorer {
   });
 
   readonly filteredVouchers = computed(() => {
-    let list = this.syncService.vouchers();
+    let list = this.tallyService.vouchers();
 
     list = list.filter(v => ALLOWED_VOUCHER_TYPES.has((v.voucher_type || '').trim().toUpperCase()));
 
@@ -191,7 +199,7 @@ export class VouchersExplorer {
     this.filterDatePreset.set(preset);
 
     if (preset !== 'custom') {
-      const { from, to } = this.syncUiUtils.computeDateRange(preset);
+      const { from, to } = this.voucherUiUtils.computeDateRange(preset);
       this.filterFromDate.set(from);
       this.filterToDate.set(to);
     }
@@ -228,71 +236,21 @@ export class VouchersExplorer {
     this.currentPage.set(1);
   }
 
-  exportFilteredToCsv(): void {
-    const items = this.filteredVouchers();
-    if (items.length === 0) {
-      this.syncService.errorMessage.set('No vouchers available to export for current filter criteria.');
-      return;
-    }
-
-    const headers = [
-      'Voucher Number',
-      'Date',
-      'Voucher Type',
-      'Party Name',
-      'Party Ledger',
-      'Vehicle Number',
-      'State',
-      'GSTIN',
-      'Items Count',
-      'Total Amount (INR)',
-      'GUID'
-    ];
-
-    const escapeCsv = (val: any) => {
-      const s = String(val ?? '').replace(/"/g, '""');
-      return `"${s}"`;
-    };
-
-    const rows = items.map(v => [
-      escapeCsv(v.voucher_number),
-      escapeCsv(v.date),
-      escapeCsv(v.voucher_type || 'Sales'),
-      escapeCsv(this.getPartyDisplayName(v)),
-      escapeCsv(v.party_ledger_name || ''),
-      escapeCsv(v.vehicle_number || ''),
-      escapeCsv(v.state_name || v.party?.state || ''),
-      escapeCsv(v.party_gstin || v.party?.gstin || ''),
-      escapeCsv(this.getVoucherItems(v).length),
-      escapeCsv(this.getVoucherTotal(v).toFixed(2)),
-      escapeCsv(v.guid || '')
-    ].join(','));
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `langhar_vouchers_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    this.syncService.activeActionMessage.set(`Successfully exported ${items.length} vouchers to CSV.`);
-    setTimeout(() => this.syncService.clearActionMessage(), 3500);
-  }
-
   copyVoucherNumber(vNum: string): void {
     if (!vNum) return;
     navigator.clipboard.writeText(vNum).then(() => {
-      this.syncService.activeActionMessage.set(`Voucher #${vNum} copied to clipboard!`);
-      setTimeout(() => this.syncService.clearActionMessage(), 2500);
+      this.tallyService.activeActionMessage.set(`Voucher #${vNum} copied to clipboard!`);
+      setTimeout(() => this.tallyService.clearActionMessage(), 2500);
     });
   }
 
-  triggerTallyScan(sourcePref?: 'live' | 'firestore' | 'auto'): void {
-    this.syncUiUtils.triggerTallyScan(sourcePref);
+  triggerTallyScan(): void {
+    this.voucherUiUtils.triggerTallyScan();
+  }
+
+  retryTallyConnection(): void {
+    this.tallyService.clearError();
+    this.tallyService.refreshActiveCompany().subscribe();
   }
 
   openVoucherDetail(voucher: VoucherItem): void {
@@ -301,6 +259,34 @@ export class VouchersExplorer {
 
   closeVoucherDetail(): void {
     this.selectedVoucher.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  closeVoucherDetailOnEscape(): void {
+    if (this.pdfPreviewUrl()) this.closePdfPreview();
+    else if (this.selectedVoucher()) this.closeVoucherDetail();
+  }
+
+  closePdfPreview(): void {
+    this.pdfPreviewUrl.set(null);
+    this.pdfPreviewTitle.set('');
+    if (this.pdfObjectUrl) URL.revokeObjectURL(this.pdfObjectUrl);
+    this.pdfObjectUrl = null;
+  }
+
+  printPdfPreview(): void {
+    this.pdfFrame()?.nativeElement.contentWindow?.print();
+  }
+
+  ngOnDestroy(): void {
+    this.closePdfPreview();
+  }
+
+  private showPdfPreview(blob: Blob, title: string): void {
+    this.closePdfPreview();
+    this.pdfObjectUrl = URL.createObjectURL(blob);
+    this.pdfPreviewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfObjectUrl));
+    this.pdfPreviewTitle.set(title);
   }
 
   getVoucherTotal(voucher: VoucherItem): number {
@@ -330,59 +316,62 @@ export class VouchersExplorer {
     return Boolean(vehicleNumber && !['—', '-', 'N/A', 'NA'].includes(vehicleNumber.toUpperCase()));
   }
 
+  isGeneratingPdfFor(action: PdfAction, voucher: VoucherItem): boolean {
+    const current = this.generatingPdf();
+    return current?.action === action && current.voucher === voucher;
+  }
+
   async viewVoucherPdf(voucher: VoucherItem): Promise<void> {
     try {
-      this.generatingPdfMessage.set(`Rendering invoice #${voucher.voucher_number || ''}...`);
-      this.isGeneratingPdf.set(true);
+      this.generatingPdf.set({ action: 'view-invoice', voucher });
       const sale = mapVoucherToSaleRecord(voucher);
-      await this.billService.openPdf(sale);
+      const blob = await this.billService.generateInvoicePdf(sale);
+      this.showPdfPreview(blob, `Invoice #${voucher.voucher_number || ''}`);
     } catch (err: any) {
       console.error('Failed to view PDF:', err);
       alert('Could not render PDF invoice: ' + (err?.message || err));
     } finally {
-      this.isGeneratingPdf.set(false);
+      this.generatingPdf.set(null);
     }
   }
 
   async downloadVoucherPdf(voucher: VoucherItem): Promise<void> {
     try {
-      this.generatingPdfMessage.set(`Preparing invoice download for #${voucher.voucher_number || ''}...`);
-      this.isGeneratingPdf.set(true);
+      this.generatingPdf.set({ action: 'download-invoice', voucher });
       const sale = mapVoucherToSaleRecord(voucher);
       await this.billService.downloadPdf(sale);
     } catch (err: any) {
       console.error('Failed to download PDF:', err);
       alert('Could not generate PDF invoice: ' + (err?.message || err));
     } finally {
-      this.isGeneratingPdf.set(false);
+      this.generatingPdf.set(null);
     }
   }
 
   async viewVoucherDeliveryNote(voucher: VoucherItem): Promise<void> {
     try {
-      this.generatingPdfMessage.set(`Rendering delivery note for #${voucher.voucher_number || ''}...`);
-      this.isGeneratingPdf.set(true);
+      this.generatingPdf.set({ action: 'view-delivery-note', voucher });
       const sale = mapVoucherToSaleRecord(voucher);
-      await this.billService.openDeliveryNotePdf(sale);
+      const blob = await this.billService.generateDeliveryNotePdf(sale);
+      this.showPdfPreview(blob, `Delivery note #${voucher.voucher_number || ''}`);
     } catch (err: any) {
       console.error('Failed to view Delivery Note:', err);
       alert('Could not render Delivery Note: ' + (err?.message || err));
     } finally {
-      this.isGeneratingPdf.set(false);
+      this.generatingPdf.set(null);
     }
   }
 
   async downloadVoucherDeliveryNote(voucher: VoucherItem): Promise<void> {
     try {
-      this.generatingPdfMessage.set(`Preparing delivery note download for #${voucher.voucher_number || ''}...`);
-      this.isGeneratingPdf.set(true);
+      this.generatingPdf.set({ action: 'download-delivery-note', voucher });
       const sale = mapVoucherToSaleRecord(voucher);
       await this.billService.downloadDeliveryNotePdf(sale);
     } catch (err: any) {
       console.error('Failed to download Delivery Note:', err);
       alert('Could not generate Delivery Note PDF: ' + (err?.message || err));
     } finally {
-      this.isGeneratingPdf.set(false);
+      this.generatingPdf.set(null);
     }
   }
 }
