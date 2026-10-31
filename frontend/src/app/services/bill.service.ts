@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import type { SaleRecord } from '../models/bill.model';
-import { lexendVfs, lexendFontMap } from './lexend-fonts';
+import { lexendFontMap, loadLexendFontVfs } from './lexend-fonts';
 import { CompanyProfile } from '../models/company.model';
 import { buildDeliveryNoteDoc, buildInvoiceDoc } from './bill-pdf.builder';
 import type { TDocumentDefinitions } from 'pdfmake/interfaces';
@@ -9,7 +9,7 @@ import type { TDocumentDefinitions } from 'pdfmake/interfaces';
 export class BillService {
   private config: CompanyProfile = this.loadInitialConfig();
   private pdfMakePromise: Promise<any> | null = null;
-  private logoBase64: string | null = null;
+  private logoPromise: Promise<string> | null = null;
 
   private loadInitialConfig(): CompanyProfile {
     return {
@@ -24,11 +24,7 @@ export class BillService {
     };
   }
 
-  getConfig(): CompanyProfile {
-    return { ...this.config };
-  }
-
-  activateCompany(_companyId: string, companyName: string): void {
+  activateCompany(companyName: string): void {
     this.config = { ...this.loadInitialConfig(), company_name: companyName.trim() };
   }
 
@@ -38,47 +34,50 @@ export class BillService {
       : { ...this.config, ...profile };
   }
 
-  private loadPdfMake(): Promise<any> {
-    if (!this.pdfMakePromise) {
-      this.pdfMakePromise = (async () => {
+  private initializationPromise: Promise<{ pdfMake: any; logoDataUri: string }> | null = null;
+
+  private async initializePdfAssets(): Promise<{ pdfMake: any; logoDataUri: string }> {
+    if (!this.initializationPromise) {
+      this.initializationPromise = (async () => {
+        // Load PDF maker with fonts
         const pdfModule = await import('pdfmake/build/pdfmake');
         const pdfMake = pdfModule.default ?? pdfModule;
-        const vfsModule = await import('pdfmake/build/vfs_fonts');
-        const vfs = vfsModule.default ?? vfsModule;
-        pdfMake.addVirtualFileSystem(vfs);
-        pdfMake.addVirtualFileSystem(lexendVfs);
+        pdfMake.addVirtualFileSystem(await loadLexendFontVfs());
         pdfMake.addFonts(lexendFontMap);
-        return pdfMake;
+
+        // Load logo with fallback
+        let logoDataUri: string;
+        try {
+          const response = await fetch('/pdf-logo.png');
+          if (!response.ok) throw new Error('Failed to fetch PDF logo');
+          const blob = await response.blob();
+          logoDataUri = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read PDF logo'));
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          logoDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+        }
+
+        return { pdfMake, logoDataUri };
       })();
     }
-    return this.pdfMakePromise;
+    return this.initializationPromise;
+  }
+
+  private async loadPdfMake(): Promise<any> {
+    return (await this.initializePdfAssets()).pdfMake;
   }
 
   private async loadLogo(): Promise<string> {
-    if (this.logoBase64) {
-      return this.logoBase64;
-    }
-    try {
-      const response = await fetch('logo.png');
-      if (!response.ok) throw new Error('Failed to fetch logo');
-      const blob = await response.blob();
-      this.logoBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-      return this.logoBase64;
-    } catch {
-      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-    }
+    return (await this.initializePdfAssets()).logoDataUri;
   }
 
   private async generatePdf(builder: (logoDataUri: string) => TDocumentDefinitions): Promise<Blob> {
-    const [pdfModule, logoDataUri] = await Promise.all([
-      this.loadPdfMake(),
-      this.loadLogo(),
-    ]);
-    const pdfDoc = pdfModule.createPdf(builder(logoDataUri));
+    const assets = await this.initializePdfAssets();
+    const pdfDoc = assets.pdfMake.createPdf(builder(assets.logoDataUri));
     let blob: Blob;
     const blobResult = pdfDoc.getBlob();
     if (blobResult && typeof (blobResult as any).then === 'function') {

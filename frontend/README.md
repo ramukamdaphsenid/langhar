@@ -2,10 +2,11 @@
 
 Angular frontend for live Tally voucher review, company document information, and invoice/delivery-note PDF generation.
 
-## Screens
+## Screen
 
-- **Vouchers** (`/vouchers`): reads the active company's vouchers directly from the backend/Tally connection. Search and date filters operate on the loaded live response. Each voucher can be opened for details and used to create an invoice or delivery-note PDF.
-- **Company information** (`/company`): edits the business details printed on generated PDFs.
+- **Vouchers** (`/vouchers`): reads vouchers from the company currently open in Tally. Search and date filters operate on the loaded live response. Each voucher can be opened for details and used to create an invoice or delivery-note PDF.
+
+Company details printed on PDFs are configured in the backend company profile, not in a frontend screen.
 
 ## Run locally
 

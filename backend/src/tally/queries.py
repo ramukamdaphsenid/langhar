@@ -46,7 +46,8 @@ def build_vouchers_query(
     Args:
         from_date: Start date in YYYYMMDD format (e.g. '20240401'). Defaults to beginning of financial year if omitted.
         to_date: End date in YYYYMMDD format (e.g. '20240430'). Defaults to current date if omitted.
-        company: Optional target company name in Tally.
+        company: Retained for call compatibility; ignored because Tally XML
+            context switching can crash Tally Prime.
         voucher_types: Optional voucher type names to include in the export.
     """
     # Build Static Variables block
@@ -123,12 +124,3 @@ def build_vouchers_query(
   </BODY>
 </ENVELOPE>"""
     return query
-
-
-def build_sales_vouchers_query(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    company: Optional[str] = None
-) -> str:
-    """Backward-compatible alias; query now exports every voucher type."""
-    return build_vouchers_query(from_date, to_date, company)

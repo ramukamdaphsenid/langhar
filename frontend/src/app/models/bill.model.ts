@@ -12,14 +12,11 @@ export interface SaleRecord {
   voucherType?: string;
   dateISO: string;
   partyName: string;
-  partyAddress?: string;
   partyState?: string;
   partyGstin?: string;
   narration?: string;
   truckNumber?: string;
-  deliveryNote?: string;
   items: SaleItem[];
   totalAmount: number;
   totalGst?: number;
-  rowId: string;
 }

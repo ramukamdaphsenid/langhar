@@ -1,7 +1,7 @@
 """Parser for Tally XML voucher responses.
 
 Transforms raw Tally XML responses into clean, normalized Python dictionaries
-ready for validation and storage in the local database.
+ready for validation and use by the frontend.
 """
 from __future__ import annotations
 
@@ -286,7 +286,7 @@ def extract_vehicle_number(v_data: Dict[str, Any], narration: str = "", referenc
     return ""
 
 
-def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def parse_single_voucher(v_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Parses a single Tally voucher dictionary into a standardized schema."""
     if not isinstance(v_data, dict):
         return None
@@ -304,8 +304,6 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
     guid = safe_str(v_data.get("GUID"))
     voucher_number = safe_str(v_data.get("VOUCHERNUMBER"))
     date_iso = parse_tally_date(v_data.get("DATE"))
-    effective_date_iso = parse_tally_date(v_data.get("EFFECTIVEDATE")) or date_iso
-
     master_id = safe_int(v_data.get("MASTERID"))
 
     # Party details
@@ -361,29 +359,13 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
         clean_suffix = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_id)
         doc_id = clean_suffix
 
-    # Derive company name from param or XML fields
-    resolved_company = (
-        company_name
-        or safe_str(v_data.get("COMPANY"))
-        or safe_str(v_data.get("COMPANYNAME"))
-        or ""
-    )
-
     return {
         "doc_id": doc_id,
         "guid": guid,
-        "master_id": master_id,
         "voucher_number": voucher_number,
         "voucher_type": voucher_type,
-        "company_name": resolved_company,
         "date": date_iso,
-        "effective_date": effective_date_iso,
         "vehicle_number": vehicle_number,
-        "party_name": party_name,
-        "party_ledger_name": party_ledger,
-        "party_gstin": party_gstin,
-        "state_name": party_state,
-        "place_of_supply": place_of_supply,
         "party": {
             "ledger_name": party_ledger,
             "name": party_name,
@@ -395,15 +377,13 @@ def parse_single_voucher(v_data: Dict[str, Any], company_name: Optional[str] = N
         "total_amount": round(total_amount, 2),
         "narration": narration,
         "reference": reference,
-        "items": items,
         "inventory_entries": items,
         "ledger_entries": ledgers,
         "taxes": taxes,
-        "source": "tally_prime",
     }
 
 
-def parse_tally_vouchers_xml(xml_content: str, company_name: Optional[str] = None) -> List[Dict[str, Any]]:
+def parse_tally_vouchers_xml(xml_content: str) -> List[Dict[str, Any]]:
     """Parses a full Tally XML response into a list of normalized voucher dicts."""
     if not xml_content or not xml_content.strip():
         return []
@@ -427,12 +407,6 @@ def parse_tally_vouchers_xml(xml_content: str, company_name: Optional[str] = Non
     body = envelope.get("BODY", {})
     data = body.get("DATA", {})
 
-    # Check for static variable or header company name if not explicitly passed
-    if not company_name:
-        desc = body.get("DESC", {})
-        static_vars = desc.get("STATICVARIABLES", {})
-        company_name = safe_str(static_vars.get("SVCURRENTCOMPANY")) or None
-
     # Tally can wrap vouchers in COLLECTION or VOUCHER directly
     collection = data.get("COLLECTION", {})
     raw_vouchers = collection.get("VOUCHER", [])
@@ -447,7 +421,7 @@ def parse_tally_vouchers_xml(xml_content: str, company_name: Optional[str] = Non
     for v in voucher_list:
         if not v or not isinstance(v, dict):
             continue
-        parsed = parse_single_voucher(v, company_name=company_name)
+        parsed = parse_single_voucher(v)
         if parsed:
             results.append(parsed)
 

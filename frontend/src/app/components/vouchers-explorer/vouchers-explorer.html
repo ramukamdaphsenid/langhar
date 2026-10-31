@@ -174,8 +174,8 @@
               <td class="mono">{{ voucher.date }}</td>
               <td>
                 <strong>{{ getPartyDisplayName(voucher) }}</strong>
-                @if (voucher.party_ledger_name && voucher.party_name && voucher.party_ledger_name !== voucher.party_name) {
-                  <small class="table-secondary">{{ voucher.party_ledger_name }}</small>
+                @if (voucher.party?.ledger_name && voucher.party?.name && voucher.party?.ledger_name !== voucher.party?.name) {
+                  <small class="table-secondary">{{ voucher.party?.ledger_name }}</small>
                 }
               </td>
               <td class="mono">{{ hasVehicleNumber(voucher) ? voucher.vehicle_number : '—' }}</td>
@@ -197,8 +197,6 @@
             <tr><td colspan="6" class="empty-table-state">
               @if (activeFilterCount() > 0) {
                 No records match these filters.
-              } @else if (!isTallyConnected()) {
-                Tally is disconnected or its active company could not be verified. Open one company in Tally and retry.
               } @else {
                 No sales vouchers were returned by Tally Prime for the active company.
               }
@@ -233,8 +231,8 @@
           <section class="voucher-detail-summary" aria-label="Voucher information">
             <div><span>Total amount</span><strong>₹{{ getVoucherTotal(voucher) | number:'1.2-2' }}</strong></div>
             <div><span>Vehicle</span><strong>{{ hasVehicleNumber(voucher) ? voucher.vehicle_number : 'Not specified' }}</strong></div>
-            <div><span>State</span><strong>{{ voucher.state_name || voucher.party?.state || 'N/A' }}</strong></div>
-            <div><span>Party GSTIN</span><strong>{{ voucher.party_gstin || voucher.party?.gstin || 'Unregistered' }}</strong></div>
+            <div><span>State</span><strong>{{ voucher.party?.state || 'N/A' }}</strong></div>
+            <div><span>Party GSTIN</span><strong>{{ voucher.party?.gstin || 'Unregistered' }}</strong></div>
           </section>
           <section class="voucher-detail-section">
             <header><h3>Inventory line items</h3><span>{{ getVoucherItems(voucher).length }}</span></header>
@@ -278,6 +276,9 @@
           <div class="pdf-preview-actions">
             <button class="button button-small" type="button" (click)="printPdfPreview()">
               <span class="material-symbols-outlined" aria-hidden="true">print</span>Print
+            </button>
+            <button class="button button-small button-quiet" type="button" (click)="downloadPdfPreview()" [attr.aria-label]="'Download ' + pdfPreviewTitle()">
+              <span class="material-symbols-outlined" aria-hidden="true">download</span>Download
             </button>
             <button class="button button-small button-quiet" type="button" (click)="closePdfPreview()" aria-label="Close PDF preview">
               <span class="material-symbols-outlined" aria-hidden="true">close</span>

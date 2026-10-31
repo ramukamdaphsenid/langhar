@@ -3,7 +3,6 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, finalize, map, of, tap } from 'rxjs';
 import { ActiveCompanyResponse, VoucherItem, VouchersResponse } from '../models/tally-voucher.model';
 import { CompanyProfile } from '../models/company.model';
-import { ALLOWED_VOUCHER_TYPES } from './bill.mapper';
 
 @Injectable({ providedIn: 'root' })
 export class TallyApiService {
@@ -45,25 +44,21 @@ export class TallyApiService {
     this.lastVouchersUpdatedAt.set(null);
     this.isLoadingVouchers.set(false);
     this.voucherRequestVersion++;
-    if (id) this.fetchVouchers(id).subscribe();
   }
 
   refreshActiveCompany(): Observable<ActiveCompanyResponse | null> {
     this.isCheckingHealth.set(true);
-    const previousCompanyId = this.activeCompanyId();
     return this.http.get<ActiveCompanyResponse>(this.getUrl('/api/company/active')).pipe(
       tap(response => {
         this.isCheckingHealth.set(false);
         const active = response.active_company;
-        this.isBackendOnline.set(response.tally_online && !!active);
+        this.isBackendOnline.set(response.tally_online);
         this.setActiveCompany(active?.company_name || null, active?.company_id || null);
-        if (active && previousCompanyId === active.company_id) {
-          this.fetchVouchers(active.company_id).subscribe();
-        }
-        if (response.tally_online && active) {
+        if (response.tally_online) {
           this.errorMessage.set(null);
+          this.fetchVouchers().subscribe();
         } else {
-          this.errorMessage.set('Tally is not reachable or its active company could not be verified.');
+          this.errorMessage.set('Tally is not reachable.');
         }
       }),
       catchError((error: HttpErrorResponse) => {
@@ -76,32 +71,20 @@ export class TallyApiService {
     );
   }
 
-  fetchVouchers(companyId = this.activeCompanyId()): Observable<VoucherItem[] | null> {
+  fetchVouchers(): Observable<VoucherItem[] | null> {
     const requestVersion = ++this.voucherRequestVersion;
-    if (!companyId) {
-      this.vouchers.set([]);
-      return of(null);
-    }
-
     this.isLoadingVouchers.set(true);
-    const query = `?company_id=${encodeURIComponent(companyId)}`;
-    return this.http.get<VouchersResponse>(this.getUrl(`/api/vouchers${query}`)).pipe(
-      map(response => ({
-        ...response,
-        vouchers: (response.vouchers || []).filter(voucher =>
-          ALLOWED_VOUCHER_TYPES.has((voucher.voucher_type || '').trim().toUpperCase())
-        ),
-      })),
+    return this.http.get<VouchersResponse>(this.getUrl('/api/vouchers')).pipe(
       tap(response => {
-        if (companyId !== this.activeCompanyId() || requestVersion !== this.voucherRequestVersion) return;
-        this.vouchers.set(response.vouchers);
+        if (requestVersion !== this.voucherRequestVersion) return;
+        this.vouchers.set(response.vouchers || []);
         this.lastVouchersUpdatedAt.set(new Date());
         this.isBackendOnline.set(true);
         this.errorMessage.set(null);
       }),
-      map(response => response.vouchers),
+        map(response => response.vouchers || []),
       catchError((error: HttpErrorResponse) => {
-        if (companyId === this.activeCompanyId() && requestVersion === this.voucherRequestVersion) {
+        if (requestVersion === this.voucherRequestVersion) {
           this.vouchers.set([]);
           this.isBackendOnline.set(false);
           this.errorMessage.set(error.error?.detail || error.message || 'Could not load vouchers from Tally Prime.');

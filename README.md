@@ -14,7 +14,7 @@ Voucher data shown in the app is requested live from Tally and is not cached loc
 
 1. Start Tally Prime and open the company whose vouchers you need.
 2. Enable the Tally XML HTTP server in **F1 (Help) → Settings → Connectivity**. Use port `9000` unless configured otherwise.
-3. If multiple companies are loaded and Tally XML cannot uniquely identify the active company, enable ODBC verification in the backend configuration.
+3. If multiple companies are loaded and Tally XML cannot uniquely identify the active company, enable ODBC verification in the backend configuration. The backend includes `pyodbc`; configure the Tally ODBC DSN on the machine running Langhar.
 4. Keep Tally open while refreshing vouchers or generating documents.
 
 The XML interface is required for voucher data. Optional ODBC configuration is only used to verify the active company.
@@ -50,25 +50,29 @@ TALLY_PORT=9000
 TALLY_TIMEOUT=30
 TALLY_USE_ODBC=false
 TALLY_ODBC_DSN=TallyODBC64_9000
+APP_HOST=127.0.0.1
+APP_PORT=8000
 ```
+
+`APP_HOST` and `APP_PORT` control the local web server used by the packaged app. If the port is busy, the next free port is used automatically.
 
 The company document profile is configured in `backend/config/company_profile.json`; Python defaults are defined in `backend/src/utils/company_helper.py`. Tally remains the source of voucher data.
 
-## Docker
+## Windows installer
 
-The Docker Compose setup builds the Angular frontend and FastAPI backend into one local service, normally available at `http://localhost:8000`.
-
-```powershell
-.\run-docker.bat
-```
-
-Or:
+To build a shareable Windows installer, use a 64-bit Windows machine with Python 3.12, Node.js 22, and Inno Setup 6 installed. Run:
 
 ```powershell
-docker compose up -d --build
+.\build-windows-installer.bat
 ```
 
-When Tally runs on the Windows host, configure the container's Tally host as `http://host.docker.internal` so the container can reach port `9000`.
+The installer is written to `dist\installer\Langhar-Setup.exe`. Recipients do not need Python or Node.js. They do need Tally Prime installed and running with its XML HTTP server enabled on port `9000`, and the Microsoft Edge WebView2 Runtime installed. Launching Langhar opens the app in its own window without a separate console; closing the app window stops the local service. Startup errors are shown in a dialog and logged to `%LOCALAPPDATA%\Langhar\logs\langhar.log`.
+
+Installer configuration and the editable company document profile are stored per user under `%LOCALAPPDATA%\Langhar`. Set `TALLY_HOST`, `TALLY_PORT`, `APP_PORT`, and other backend options in `%LOCALAPPDATA%\Langhar\.env` if the defaults do not match the recipient's setup. Changing the port never requires rebuilding the app.
+
+The installer includes the repository's configured company profile and company defaults. Review those details before sharing the installer.
+
+For build internals, the change-to-rebuild checklist, port configuration, and troubleshooting, see [`packaging/windows/README.md`](packaging/windows/README.md).
 
 ## Tests
 

@@ -9,12 +9,12 @@ from config.settings import settings
 from src.utils.logger import logger
 
 # Resolve the SPA static directory. Override via STATIC_DIR env var if needed.
-# Defaults to backend/static (where the Docker build copies the Angular output).
+# Defaults to backend/static (a locally compiled Angular output directory).
 _static_dir_env = os.getenv("STATIC_DIR")
 if _static_dir_env:
     static_dir = Path(_static_dir_env)
 else:
-    static_dir = settings.base_dir / "static"
+    static_dir = settings.static_dir
 
 
 def mount_spa(app: FastAPI) -> None:

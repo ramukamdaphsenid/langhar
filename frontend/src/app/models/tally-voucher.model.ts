@@ -13,6 +13,8 @@ export interface BatchItem {
   godown_name?: string;
   amount?: number;
   billed_qty?: string;
+  quantity?: number;
+  unit?: string;
 }
 
 export interface InventoryItem {
@@ -46,22 +48,12 @@ export interface VoucherParty {
 
 export interface VoucherItem {
   doc_id?: string;
-  company_id?: string;
   guid: string;
-  master_id?: number;
   voucher_number: string;
-  company_name?: string;
   date: string;
-  effective_date?: string;
   voucher_type?: string;
   vehicle_number?: string;
-  party_name?: string;
-  party_ledger_name?: string;
-  party_gstin?: string;
-  state_name?: string;
-  place_of_supply?: string;
   party?: VoucherParty;
-  items?: InventoryItem[];
   inventory_entries?: InventoryItem[];
   ledger_entries?: LedgerItem[];
   taxes?: {
@@ -74,13 +66,10 @@ export interface VoucherItem {
   total_amount?: number;
   narration?: string;
   reference?: string;
-  source?: string;
-  synced_at?: string;
 }
 
 export interface VouchersResponse {
   source: 'live';
   total: number;
-  returned: number;
   vouchers: VoucherItem[];
 }

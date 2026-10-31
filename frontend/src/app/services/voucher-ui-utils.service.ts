@@ -1,4 +1,4 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { TallyApiService } from './tally-api.service';
 
 export type DatePreset = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'fy' | 'custom';
@@ -6,7 +6,6 @@ export type DatePreset = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'fy'
 @Injectable({ providedIn: 'root' })
 export class VoucherUiUtilsService {
   private readonly tallyService = inject(TallyApiService);
-  readonly isTallyConnected = computed(() => this.tallyService.isBackendOnline());
 
   computeDateRange(preset: Exclude<DatePreset, 'custom'>): { from: string; to: string } {
     const today = new Date();

@@ -21,7 +21,7 @@ export class App {
       const companyName = this.tallyService.activeCompany();
       if (!companyId || !companyName) return;
 
-      this.billService.activateCompany(companyId, companyName);
+      this.billService.activateCompany(companyName);
       this.tallyService.fetchCompanyProfile(companyId).subscribe(profile => {
         if (profile && companyId === this.tallyService.activeCompanyId()) {
           this.billService.setCompanyProfile(profile, true);

@@ -181,15 +181,6 @@ class TallyClient:
             detail = re.search(r"<(?:LINEERROR|DESC)>(.*?)</(?:LINEERROR|DESC)>", xml_response, flags=re.IGNORECASE | re.DOTALL)
             message = html.unescape(detail.group(1).strip()) if detail else "Tally rejected the voucher export request."
             raise RuntimeError(message)
-        vouchers = parse_tally_vouchers_xml(xml_response, company_name=target_company)
+        vouchers = parse_tally_vouchers_xml(xml_response)
         logger.info(f"Retrieved and parsed {len(vouchers)} voucher(s) from Tally Prime (Company: {target_company or 'Active'}).")
         return vouchers
-
-    def fetch_sales_vouchers(
-        self,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
-        company: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """Backward-compatible alias; the export now includes every voucher type."""
-        return self.fetch_vouchers(from_date, to_date, company)

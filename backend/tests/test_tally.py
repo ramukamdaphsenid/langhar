@@ -113,43 +113,40 @@ class TestTallyApi(unittest.TestCase):
         from unittest.mock import patch
         from api import get_vouchers
 
-        with patch("src.api.routers.vouchers.TallyClient") as tally_client, \
-                patch("src.api.routers.vouchers.require_active_company", return_value={
-                    "company_id": "a" * 64,
-                    "company_name": "Test Mill"
-                }):
+        with patch("src.api.routers.vouchers.TallyClient") as tally_client:
             tally_client.return_value.is_available.return_value = False
             with self.assertRaises(HTTPException) as raised:
-                get_vouchers(limit=5, company_id="a" * 64)
+                get_vouchers()
 
         self.assertEqual(raised.exception.status_code, 503)
         self.assertIn("Tally Prime is not reachable", raised.exception.detail)
 
-    def test_vouchers_are_fetched_from_verified_active_tally_company(self):
+    def test_vouchers_are_fetched_without_company_identity_verification(self):
         from unittest.mock import patch
         from api import get_vouchers
 
-        company_id = "a" * 64
         voucher = {"guid": "voucher-guid", "voucher_number": "INV-1"}
-        with patch("src.api.routers.vouchers.TallyClient") as tally_client, \
-                patch("src.api.routers.vouchers.require_active_company", return_value={
-                    "company_id": company_id,
-                    "company_name": "Test Mill"
-                }), \
-                patch("src.api.routers.vouchers.settings.tally.use_odbc", False):
+        with patch("src.api.routers.vouchers.TallyClient") as tally_client:
             client = tally_client.return_value
             client.is_available.return_value = True
-            client.get_active_company.side_effect = ["Test Mill", "Test Mill"]
             client.fetch_vouchers.return_value = [voucher]
 
-            result = get_vouchers(company_id=company_id)
+            result = get_vouchers()
 
+        tally_client.assert_called_once_with()
         client.fetch_vouchers.assert_called_once_with(
-            company="Test Mill",
             voucher_types=("RICE SALES", "RICE SALES TAXABLE"),
         )
         self.assertEqual(result["source"], "live")
-        self.assertEqual(result["vouchers"], [{**voucher, "company_id": company_id}])
+        self.assertEqual(result["total"], 1)
+        self.assertNotIn("returned", result)
+        self.assertEqual(result["vouchers"], [voucher])
+
+    def test_voucher_endpoint_has_no_server_side_search_or_pagination(self):
+        from api import app
+
+        parameters = app.openapi()["paths"]["/api/vouchers"]["get"].get("parameters", [])
+        self.assertEqual(parameters, [])
 
     def test_only_voucher_company_and_health_routes_are_exposed(self):
         from api import app
@@ -230,14 +227,24 @@ class TestTallyApi(unittest.TestCase):
         ok, _ = verify_company_match("Acme Pvt Ltd", "Acme")
         self.assertFalse(ok, "Company names must not pass safety checks by substring alone")
 
-    def test_vouchers_tagged_with_company_name(self):
+    def test_parsed_voucher_uses_canonical_party_shape(self):
         xml = """<ENVELOPE><BODY><DATA><COLLECTION><VOUCHER VCHTYPE="RICE SALES">
           <VOUCHERNUMBER>INV-001</VOUCHERNUMBER><VOUCHERTYPENAME>RICE SALES</VOUCHERTYPENAME>
           <DATE>20240415</DATE><GUID>test-guid</GUID>
+          <PARTYLEDGERNAME>Customer Ledger</PARTYLEDGERNAME><PARTYNAME>Customer</PARTYNAME>
+          <PARTYGSTIN>GSTIN-1</PARTYGSTIN><STATENAME>Karnataka</STATENAME>
         </VOUCHER></COLLECTION></DATA></BODY></ENVELOPE>"""
-        vouchers = parse_tally_vouchers_xml(xml, company_name="Sri Lakshmi Modern Rice Mill")
+        vouchers = parse_tally_vouchers_xml(xml)
         self.assertEqual(len(vouchers), 1)
-        self.assertEqual(vouchers[0]["company_name"], "Sri Lakshmi Modern Rice Mill")
+        self.assertEqual(vouchers[0]["party"]["name"], "Customer")
+        self.assertEqual(vouchers[0]["party"]["ledger_name"], "Customer Ledger")
+        self.assertEqual(vouchers[0]["party"]["gstin"], "GSTIN-1")
+        self.assertEqual(vouchers[0]["party"]["state"], "Karnataka")
+        self.assertNotIn("company_name", vouchers[0])
+        self.assertNotIn("party_name", vouchers[0])
+        self.assertNotIn("party_gstin", vouchers[0])
+        self.assertNotIn("items", vouchers[0])
+        self.assertNotIn("source", vouchers[0])
 
 
 
