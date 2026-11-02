@@ -19,4 +19,8 @@ export interface SaleRecord {
   items: SaleItem[];
   totalAmount: number;
   totalGst?: number;
+  /** Reference field from Tally - often contains delivery note number */
+  reference?: string;
+  /** Original voucher/invoice number from Tally */
+  invoiceNumber?: string;
 }

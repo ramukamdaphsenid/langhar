@@ -270,7 +270,7 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
                 ...(sale.partyGstin
                   ? [{ text: `GSTIN: ${sale.partyGstin}`, style: 'infoSmall', margin: [0, density.ultraCompact ? 0 : 1, 0, 0] as [number, number, number, number] }]
                   : []),
-              ],
+              ] as Content[],
               border: [false, false, false, false],
               margin: [0, 0, 0, 0] as [number, number, number, number],
             },
@@ -278,7 +278,19 @@ export function buildInvoiceDoc(sale: SaleRecord, config: CompanyProfile, logoDa
               stack: [
                 { text: 'DATE', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 4, 0, 0] as [number, number, number, number] },
                 { text: dateStr, style: 'infoValueBold', alignment: 'right' },
-              ],
+                ...(sale.invoiceNumber
+                  ? [
+                    { text: 'INVOICE NO.', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
+                    { text: sale.invoiceNumber, style: 'infoValueBold', alignment: 'right' },
+                  ]
+                  : []),
+                ...(sale.reference
+                  ? [
+                    { text: 'DELIVERY NOTE', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
+                    { text: sale.reference, style: 'infoValueBold', alignment: 'right' },
+                  ]
+                  : []),
+              ] as Content[],
               border: [false, false, false, false],
               margin: [0, 0, 0, 0] as [number, number, number, number],
             },
@@ -517,6 +529,18 @@ export function buildDeliveryNoteDoc(sale: SaleRecord, config: CompanyProfile, l
               stack: [
                 { text: 'DISPATCH DATE', style: 'sectionLabel', alignment: 'right' },
                 { text: dateStr, style: 'infoValueBold', alignment: 'right' },
+                ...(sale.invoiceNumber
+                  ? [
+                    { text: 'INVOICE NO.', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
+                    { text: sale.invoiceNumber, style: 'infoValueBold', alignment: 'right' },
+                  ]
+                  : []),
+                ...(sale.reference
+                  ? [
+                    { text: 'DELIVERY NOTE', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },
+                    { text: sale.reference, style: 'infoValueBold', alignment: 'right' },
+                  ]
+                  : []),
                 ...(sale.truckNumber
                   ? [
                     { text: 'VEHICLE NO.', style: 'sectionLabel', alignment: 'right', margin: [0, density.ultraCompact ? 0 : 3, 0, 0] as [number, number, number, number] },

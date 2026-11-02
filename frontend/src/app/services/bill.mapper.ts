@@ -206,5 +206,7 @@ export const mapVoucherToSaleRecord = (v: VoucherItem): SaleRecord => {
     items,
     totalAmount,
     totalGst,
+    reference: v.reference || undefined,
+    invoiceNumber: v.voucher_number || undefined,
   };
 };

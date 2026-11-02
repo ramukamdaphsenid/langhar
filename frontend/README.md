@@ -10,6 +10,8 @@ Company details printed on PDFs are configured in the backend company profile, n
 
 ## Run locally
 
+Use Node.js `22.22.3+`, `24.15.0+`, or `26+` with npm. The Angular CLI will not run on older Node.js versions.
+
 Start the FastAPI backend on `http://127.0.0.1:8000`, then run:
 
 ```powershell

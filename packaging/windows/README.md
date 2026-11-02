@@ -9,7 +9,7 @@ troubleshoot a release.
 Build on a 64-bit Windows machine with:
 
 - **Python 3.12 (x64)** on `PATH`
-- **Node.js 22** and `npm` on `PATH`
+- **Node.js 22.22.3+**, **24.15.0+**, or **26+**, and `npm` on `PATH`
 - **Inno Setup 6** installed (the script looks for `ISCC.exe` on `PATH`,
   `%ProgramFiles(x86)%`, `%ProgramFiles%`, and `%LOCALAPPDATA%\Programs`)
 

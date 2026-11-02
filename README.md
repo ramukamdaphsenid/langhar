@@ -21,7 +21,20 @@ The XML interface is required for voucher data. Optional ODBC configuration is o
 
 ## Local development
 
-### Backend
+### macOS
+
+Run `start-local.command` from Finder or the terminal. It offers to install missing Python or Node.js runtimes and prepares backend and frontend dependencies on first run. The Angular frontend requires Node.js `22.22.3+`, `24.15.0+`, or `26+`; the launcher offers a Homebrew upgrade if the installed version is too old. It opens `http://localhost:4200` only after both services are ready; press Control-C in its Terminal window to stop them.
+
+```bash
+python3 -m venv backend/venv
+backend/venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix frontend install
+./start-local.command
+```
+
+### Windows
+
+#### Backend
 
 ```powershell
 cd D:\langhar\backend
@@ -30,7 +43,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Frontend
+#### Frontend
 
 ```powershell
 cd D:\langhar\frontend
@@ -60,7 +73,7 @@ The company document profile is configured in `backend/config/company_profile.js
 
 ## Windows installer
 
-To build a shareable Windows installer, use a 64-bit Windows machine with Python 3.12, Node.js 22, and Inno Setup 6 installed. Run:
+To build a shareable Windows installer, use a 64-bit Windows machine with Python 3.12, Node.js 22.22.3+ (or 24.15.0+ / 26+), and Inno Setup 6 installed. Run:
 
 ```powershell
 .\build-windows-installer.bat

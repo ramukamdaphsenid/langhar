@@ -6,23 +6,56 @@ set "BUILD_PYTHON=%CD%\.windows-build-venv\Scripts\python.exe"
 set "ISCC="
 
 where node.exe >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Node.js is required to build the Angular frontend.
-    exit /b 1
-)
-
+if errorlevel 1 goto :missing_node
 where npm.cmd >nul 2>&1
+if errorlevel 1 goto :missing_node
+goto :node_ready
+
+:missing_node
+echo Node.js and npm are required to build the Angular frontend.
+choice /C YN /M "Install Node.js LTS with winget now"
+if errorlevel 2 goto :node_download
+where winget.exe >nul 2>&1
+if errorlevel 1 goto :node_download
+winget install --id OpenJS.NodeJS.LTS --exact --accept-package-agreements --accept-source-agreements
 if errorlevel 1 (
-    echo ERROR: npm is required to build the Angular frontend.
+    echo ERROR: Node.js installation failed. Install it from https://nodejs.org/ and rerun this script.
     exit /b 1
 )
+echo Node.js was installed. Close this window and rerun build-windows-installer.bat so the updated PATH is loaded.
+exit /b 0
+
+:node_download
+start "" "https://nodejs.org/en/download"
+echo Install Node.js LTS, then rerun build-windows-installer.bat.
+exit /b 1
+
+:node_ready
 
 where python.exe >nul 2>&1
+if errorlevel 1 goto :missing_python
+goto :python_ready
+
+:missing_python
+echo Python 3.12 x64 is required to build the Windows application.
+choice /C YN /M "Install Python 3.12 with winget now"
+if errorlevel 2 goto :python_download
+where winget.exe >nul 2>&1
+if errorlevel 1 goto :python_download
+winget install --id Python.Python.3.12 --exact --accept-package-agreements --accept-source-agreements
 if errorlevel 1 (
-    echo ERROR: Python 3.12 x64 is required to build the Windows application.
+    echo ERROR: Python installation failed. Install Python 3.12 from https://www.python.org/downloads/windows/ and rerun this script.
     exit /b 1
 )
+echo Python was installed. Close this window and rerun build-windows-installer.bat so the updated PATH is loaded.
+exit /b 0
 
+:python_download
+start "" "https://www.python.org/downloads/windows/"
+echo Install Python 3.12 x64, then rerun build-windows-installer.bat.
+exit /b 1
+
+:python_ready
 if not exist "%BUILD_PYTHON%" (
     python -m venv .windows-build-venv
     if errorlevel 1 exit /b 1

@@ -233,6 +233,10 @@
             <div><span>Vehicle</span><strong>{{ hasVehicleNumber(voucher) ? voucher.vehicle_number : 'Not specified' }}</strong></div>
             <div><span>State</span><strong>{{ voucher.party?.state || 'N/A' }}</strong></div>
             <div><span>Party GSTIN</span><strong>{{ voucher.party?.gstin || 'Unregistered' }}</strong></div>
+            @if (voucher.reference) {
+              <div><span>Delivery Note</span><strong>{{ voucher.reference }}</strong></div>
+            }
+            <div><span>Invoice No.</span><strong>{{ voucher.voucher_number || 'N/A' }}</strong></div>
           </section>
           <section class="voucher-detail-section">
             <header><h3>Inventory line items</h3><span>{{ getVoucherItems(voucher).length }}</span></header>
